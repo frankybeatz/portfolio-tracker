@@ -7,13 +7,14 @@ import { PieChart, Pie, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, AreaCh
 // ============================================
 const SHEET_ID = '1gBKOjmZV_A6pPmpEfzTioS8Y0DQtTax1aCCDWU9tQIM';
 
-// Sheet URLs (each tab published as CSV)
+// Sheet URLs (each tab published as CSV) - with cache buster
+const cacheBuster = () => `&_cb=${Date.now()}`;
 const SHEETS = {
-  config: `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Config`,
-  positions: `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Positions`,
-  history: `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=History`,
-  trades: `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Trades`,
-  targets: `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Targets`,
+  config: () => `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Config${cacheBuster()}`,
+  positions: () => `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Positions${cacheBuster()}`,
+  history: () => `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=History${cacheBuster()}`,
+  trades: () => `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Trades${cacheBuster()}`,
+  targets: () => `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Targets${cacheBuster()}`,
 };
 
 // Fetch and parse a CSV sheet
@@ -64,11 +65,11 @@ export default function App() {
         
         // Fetch all sheets in parallel
         const [configData, positionsData, historyData, tradesData, targetsData, livePrices] = await Promise.all([
-          fetchSheet(SHEETS.config),
-          fetchSheet(SHEETS.positions),
-          fetchSheet(SHEETS.history),
-          fetchSheet(SHEETS.trades),
-          fetchSheet(SHEETS.targets),
+          fetchSheet(SHEETS.config()),
+          fetchSheet(SHEETS.positions()),
+          fetchSheet(SHEETS.history()),
+          fetchSheet(SHEETS.trades()),
+          fetchSheet(SHEETS.targets()),
           fetchPrices(),
         ]);
 
