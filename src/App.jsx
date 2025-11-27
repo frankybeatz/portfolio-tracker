@@ -358,6 +358,96 @@ function calculatePositionsFromTrades(trades, totalInvested) {
   return positions;
 }
 
+// Calculate trade analytics: win rate, best/worst trade, avg hold time
+function calculateTradeAnalytics(trades) {
+  if (!trades || trades.length === 0) return null;
+  
+  const sortedTrades = [...trades].sort((a, b) => parseTradeDate(a.date) - parseTradeDate(b.date));
+  
+  // Track buys per asset: { asset: [{ date, amount, price, remaining }] }
+  const buyLots = {};
+  const completedTrades = []; // { asset, buyDate, sellDate, buyPrice, sellPrice, amount, profit, profitPct }
+  
+  sortedTrades.forEach(trade => {
+    const asset = trade.asset;
+    const amount = parseFloat(trade.amount) || 0;
+    const price = parseFloat(trade.price?.replace(/[$,]/g, '')) || 0;
+    const date = parseTradeDate(trade.date);
+    
+    if (!buyLots[asset]) buyLots[asset] = [];
+    
+    if (trade.action === 'BUY') {
+      buyLots[asset].push({ date, amount, price, remaining: amount });
+    } else if (trade.action === 'SELL') {
+      // Match against oldest buys first (FIFO)
+      let sellRemaining = amount;
+      
+      for (const lot of buyLots[asset]) {
+        if (sellRemaining <= 0 || lot.remaining <= 0) continue;
+        
+        const matchAmount = Math.min(sellRemaining, lot.remaining);
+        const profit = matchAmount * (price - lot.price);
+        const profitPct = ((price - lot.price) / lot.price) * 100;
+        const holdDays = Math.round((date - lot.date) / (1000 * 60 * 60 * 24));
+        
+        completedTrades.push({
+          asset,
+          buyDate: lot.date,
+          sellDate: date,
+          buyPrice: lot.price,
+          sellPrice: price,
+          amount: matchAmount,
+          profit,
+          profitPct,
+          holdDays,
+          value: matchAmount * price, // Total value of this trade
+        });
+        
+        lot.remaining -= matchAmount;
+        sellRemaining -= matchAmount;
+      }
+    }
+  });
+  
+  if (completedTrades.length === 0) {
+    return { 
+      totalTrades: trades.length,
+      completedRoundTrips: 0,
+      winRate: null,
+      bestTrade: null,
+      worstTrade: null,
+      avgHoldDays: null,
+      totalProfit: 0,
+    };
+  }
+  
+  // Calculate stats
+  const winners = completedTrades.filter(t => t.profit > 0);
+  const winRate = (winners.length / completedTrades.length) * 100;
+  
+  // Best/worst by profit amount
+  const bestTrade = completedTrades.reduce((best, t) => t.profit > best.profit ? t : best);
+  const worstTrade = completedTrades.reduce((worst, t) => t.profit < worst.profit ? t : worst);
+  
+  // Average hold time
+  const avgHoldDays = completedTrades.reduce((sum, t) => sum + t.holdDays, 0) / completedTrades.length;
+  
+  // Total realized profit
+  const totalProfit = completedTrades.reduce((sum, t) => sum + t.profit, 0);
+  
+  return {
+    totalTrades: trades.length,
+    completedRoundTrips: completedTrades.length,
+    winRate,
+    bestTrade,
+    worstTrade,
+    avgHoldDays,
+    totalProfit,
+    winners: winners.length,
+    losers: completedTrades.length - winners.length,
+  };
+}
+
 export default function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -366,6 +456,7 @@ export default function App() {
   const [history, setHistory] = useState([]);
   const [trades, setTrades] = useState([]);
   const [targets, setTargets] = useState([]);
+  const [tradeAnalytics, setTradeAnalytics] = useState(null);
   const [prices, setPrices] = useState({ BTC: null, ETH: null, SOL: null });
   const [btcHistory, setBtcHistory] = useState({});
   const [lastUpdate, setLastUpdate] = useState(new Date());
@@ -450,6 +541,10 @@ export default function App() {
           price: row.price,
         }));
         setTrades(parsedTrades);
+        
+        // Calculate trade analytics
+        const analytics = calculateTradeAnalytics(parsedTrades);
+        setTradeAnalytics(analytics);
 
         // Calculate positions from trades (auto-magic!)
         // Falls back to Positions sheet if no trades
@@ -869,6 +964,117 @@ export default function App() {
                   </div>
                 );
               })}
+            </div>
+          </div>
+        )}
+
+        {/* Trade Analytics */}
+        {tradeAnalytics && tradeAnalytics.completedRoundTrips > 0 && (
+          <div className="bg-gradient-to-r from-amber-900/30 to-orange-900/30 backdrop-blur rounded-2xl p-4 md:p-6 border border-amber-700/30 mb-6">
+            <div className="flex items-center gap-2 mb-4">
+              <span className="text-xl">🏆</span>
+              <h2 className="text-lg font-semibold">Trade Analytics</h2>
+              <span className="text-xs bg-amber-500/20 text-amber-400 px-2 py-1 rounded-full">
+                {tradeAnalytics.completedRoundTrips} Round Trips
+              </span>
+            </div>
+            
+            {/* Stats Row */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+              <div className="bg-slate-800/50 rounded-xl p-4">
+                <div className="text-slate-400 text-sm mb-1">Win Rate</div>
+                <div className="flex items-baseline gap-2">
+                  <span className={`text-2xl font-bold ${tradeAnalytics.winRate >= 50 ? 'text-emerald-400' : 'text-red-400'}`}>
+                    {tradeAnalytics.winRate.toFixed(0)}%
+                  </span>
+                </div>
+                <div className="text-slate-500 text-xs mt-1">
+                  {tradeAnalytics.winners}W / {tradeAnalytics.losers}L
+                </div>
+              </div>
+              
+              <div className="bg-slate-800/50 rounded-xl p-4">
+                <div className="text-slate-400 text-sm mb-1">Total Realized</div>
+                <div className={`text-2xl font-bold ${tradeAnalytics.totalProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {tradeAnalytics.totalProfit >= 0 ? '+' : ''}${Math.abs(tradeAnalytics.totalProfit).toLocaleString(undefined, {maximumFractionDigits: 0})}
+                </div>
+                <div className="text-slate-500 text-xs mt-1">Closed positions</div>
+              </div>
+              
+              <div className="bg-slate-800/50 rounded-xl p-4">
+                <div className="text-slate-400 text-sm mb-1">Avg Hold Time</div>
+                <div className="text-2xl font-bold text-white">
+                  {tradeAnalytics.avgHoldDays.toFixed(0)}d
+                </div>
+                <div className="text-slate-500 text-xs mt-1">Per trade</div>
+              </div>
+              
+              <div className="bg-slate-800/50 rounded-xl p-4">
+                <div className="text-slate-400 text-sm mb-1">Total Trades</div>
+                <div className="text-2xl font-bold text-white">
+                  {tradeAnalytics.totalTrades}
+                </div>
+                <div className="text-slate-500 text-xs mt-1">All time</div>
+              </div>
+            </div>
+            
+            {/* Best & Worst Trades */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {tradeAnalytics.bestTrade && (
+                <div className="bg-emerald-900/20 border border-emerald-700/30 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-emerald-400">🚀</span>
+                    <span className="text-emerald-400 font-semibold">Best Trade</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <span className="font-bold text-lg">{tradeAnalytics.bestTrade.asset}</span>
+                      <div className="text-slate-400 text-sm">
+                        ${tradeAnalytics.bestTrade.buyPrice.toLocaleString()} → ${tradeAnalytics.bestTrade.sellPrice.toLocaleString()}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-emerald-400 font-bold text-lg">
+                        +${tradeAnalytics.bestTrade.profit.toLocaleString(undefined, {maximumFractionDigits: 0})}
+                      </div>
+                      <div className="text-emerald-400/70 text-sm">
+                        +{tradeAnalytics.bestTrade.profitPct.toFixed(1)}%
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-slate-500 text-xs mt-2">
+                    Held {tradeAnalytics.bestTrade.holdDays} days
+                  </div>
+                </div>
+              )}
+              
+              {tradeAnalytics.worstTrade && (
+                <div className="bg-red-900/20 border border-red-700/30 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-red-400">📉</span>
+                    <span className="text-red-400 font-semibold">Worst Trade</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <span className="font-bold text-lg">{tradeAnalytics.worstTrade.asset}</span>
+                      <div className="text-slate-400 text-sm">
+                        ${tradeAnalytics.worstTrade.buyPrice.toLocaleString()} → ${tradeAnalytics.worstTrade.sellPrice.toLocaleString()}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-red-400 font-bold text-lg">
+                        ${tradeAnalytics.worstTrade.profit.toLocaleString(undefined, {maximumFractionDigits: 0})}
+                      </div>
+                      <div className="text-red-400/70 text-sm">
+                        {tradeAnalytics.worstTrade.profitPct.toFixed(1)}%
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-slate-500 text-xs mt-2">
+                    Held {tradeAnalytics.worstTrade.holdDays} days
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
