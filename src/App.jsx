@@ -5,7 +5,7 @@ import { PieChart, Pie, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, AreaCh
 // ============================================
 // 🔧 CONFIGURATION - UPDATE THIS WITH YOUR SHEET ID
 // ============================================
-const SHEET_ID = '1tDP0fUvWQhOLk0i5i4KE5TrWyg-2bLRgzDnvR1ZGox0';;
+const SHEET_ID = '1tDP0fUvWQhOLk0i5i4KE5TrWyg-2bLRgzDnvR1ZGox0';
 
 // Sheet URLs (each tab published as CSV) - with cache buster
 const cacheBuster = () => `&_cb=${Date.now()}`;
@@ -73,8 +73,12 @@ export default function App() {
           fetchPrices(),
         ]);
 
-        // Parse config (key-value pairs)
-        const configObj = {};
+        // Parse config (key-value pairs) with hardcoded fallback
+        const configObj = {
+          client_name: 'Chloé Caillet',
+          start_date: 'June 20, 2025',
+          total_invested: '50069'
+        };
         configData.forEach(row => {
           if (row.key && row.value) {
             configObj[row.key] = row.value;
