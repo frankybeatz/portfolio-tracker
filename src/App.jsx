@@ -619,6 +619,7 @@ export default function App() {
         setHistory(historyData.map(row => ({
           date: row.date,
           value: parseFloat(row.value) || 0,
+          deposit: parseFloat(row.deposit) || 0,
           label: row.label || '',
         })));
 
