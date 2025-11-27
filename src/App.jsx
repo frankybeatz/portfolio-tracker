@@ -132,17 +132,20 @@ async function fetchSheet(url) {
 // Fetch live crypto prices from CoinGecko
 async function fetchPrices() {
   try {
-    const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana&vs_currencies=usd');
+    const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana&vs_currencies=usd&include_24hr_change=true');
     const data = await response.json();
     return {
       BTC: data.bitcoin?.usd || 91500,
       ETH: data.ethereum?.usd || 3050,
       SOL: data.solana?.usd || 143,
+      BTC_24h: data.bitcoin?.usd_24h_change || 0,
+      ETH_24h: data.ethereum?.usd_24h_change || 0,
+      SOL_24h: data.solana?.usd_24h_change || 0,
     };
   } catch (err) {
     console.error('Failed to fetch prices:', err);
     // Fallback prices if API fails
-    return { BTC: 91500, ETH: 3050, SOL: 143 };
+    return { BTC: 91500, ETH: 3050, SOL: 143, BTC_24h: 0, ETH_24h: 0, SOL_24h: 0 };
   }
 }
 
@@ -457,7 +460,7 @@ export default function App() {
   const [trades, setTrades] = useState([]);
   const [targets, setTargets] = useState([]);
   const [tradeAnalytics, setTradeAnalytics] = useState(null);
-  const [prices, setPrices] = useState({ BTC: null, ETH: null, SOL: null });
+  const [prices, setPrices] = useState({ BTC: null, ETH: null, SOL: null, BTC_24h: 0, ETH_24h: 0, SOL_24h: 0 });
   const [btcHistory, setBtcHistory] = useState({});
   const [lastUpdate, setLastUpdate] = useState(new Date());
   const [showConfetti, setShowConfetti] = useState(false);
@@ -606,7 +609,7 @@ export default function App() {
 
         // Parse targets (only asset and target needed - current price is live)
         setTargets(targetsData.map(row => {
-          let asset = (row.asset || '').trim();
+          let asset = (row.asset || row.assets || '').trim();
           // Normalize asset names
           if (asset.toLowerCase() === 'bitcoin') asset = 'BTC';
           if (asset.toLowerCase() === 'ethereum') asset = 'ETH';
@@ -656,6 +659,82 @@ export default function App() {
     return 0;
   };
 
+  // Get crypto logo URL
+  const getAssetLogo = (asset) => {
+    const logos = {
+      BTC: 'https://assets.coingecko.com/coins/images/1/small/bitcoin.png',
+      ETH: 'https://assets.coingecko.com/coins/images/279/small/ethereum.png',
+      SOL: 'https://assets.coingecko.com/coins/images/4128/small/solana.png',
+      USDC: 'https://assets.coingecko.com/coins/images/6319/small/usdc.png',
+      XRP: 'https://assets.coingecko.com/coins/images/44/small/xrp-symbol-white-128.png',
+    };
+    return logos[asset?.toUpperCase()] || null;
+  };
+
+  // Get 24h change for asset
+  const get24hChange = (asset) => {
+    const a = (asset || '').toUpperCase();
+    if (a === 'BTC') return prices.BTC_24h || 0;
+    if (a === 'ETH') return prices.ETH_24h || 0;
+    if (a === 'SOL') return prices.SOL_24h || 0;
+    return 0;
+  };
+
+  // Calculate max drawdown from history
+  const calculateMaxDrawdown = () => {
+    if (!history || history.length < 2) return { maxDrawdown: 0, peakDate: '', troughDate: '' };
+    
+    let maxDrawdown = 0;
+    let peak = history[0].value;
+    let peakDate = history[0].date;
+    let troughDate = '';
+    let maxPeakDate = '';
+    let maxTroughDate = '';
+    
+    for (let i = 1; i < history.length; i++) {
+      if (history[i].value > peak) {
+        peak = history[i].value;
+        peakDate = history[i].date;
+      }
+      const drawdown = ((peak - history[i].value) / peak) * 100;
+      if (drawdown > maxDrawdown) {
+        maxDrawdown = drawdown;
+        maxPeakDate = peakDate;
+        maxTroughDate = history[i].date;
+      }
+    }
+    
+    return { maxDrawdown, peakDate: maxPeakDate, troughDate: maxTroughDate };
+  };
+
+  // Calculate monthly returns for heatmap
+  const calculateMonthlyReturns = () => {
+    if (!history || history.length < 2) return [];
+    
+    const monthlyData = {};
+    
+    history.forEach((h, i) => {
+      const date = parseTradeDate(h.date);
+      const monthKey = `${date.getFullYear()}-${date.getMonth()}`;
+      
+      if (!monthlyData[monthKey]) {
+        monthlyData[monthKey] = { 
+          year: date.getFullYear(), 
+          month: date.getMonth(), 
+          startValue: h.value,
+          endValue: h.value 
+        };
+      } else {
+        monthlyData[monthKey].endValue = h.value;
+      }
+    });
+    
+    return Object.values(monthlyData).map(m => ({
+      ...m,
+      return: ((m.endValue - m.startValue) / m.startValue) * 100
+    }));
+  };
+
   const positionsWithValue = positions.map(pos => ({
     ...pos,
     price: getAssetPrice(pos.asset),
@@ -667,6 +746,17 @@ export default function App() {
   const totalReturn = totalInvested > 0 ? ((totalValue - totalInvested) / totalInvested * 100).toFixed(1) : 0;
   const clientName = config.client_name || 'Portfolio';
   const startDate = config.start_date || '';
+
+  // Goal tracker - default goal is 2x initial investment
+  const portfolioGoal = parseFloat(config.goal) || (totalInvested * 2);
+  const goalProgress = portfolioGoal > 0 ? Math.min((totalValue / portfolioGoal) * 100, 100) : 0;
+  const amountToGoal = Math.max(portfolioGoal - totalValue, 0);
+
+  // Max drawdown calculation
+  const drawdownData = calculateMaxDrawdown();
+  
+  // Monthly returns for heatmap
+  const monthlyReturns = calculateMonthlyReturns();
 
   // Animated values
   const animatedTotalValue = useAnimatedNumber(totalValue, 1200);
@@ -916,43 +1006,127 @@ export default function App() {
               <h2 className="text-lg font-semibold">Performance</h2>
               <div className="flex items-center gap-4 text-xs">
                 <div className="flex items-center gap-1">
-                  <div className="w-3 h-0.5 bg-emerald-400"></div>
+                  <div className="w-3 h-0.5 bg-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.6)]"></div>
                   <span className="text-slate-400">Portfolio</span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <div className="w-3 h-0.5 bg-orange-400"></div>
+                  <div className="w-3 h-0.5 bg-orange-400 opacity-60"></div>
                   <span className="text-slate-400">BTC Buy & Hold</span>
                 </div>
               </div>
             </div>
             {displayHistory.length > 0 ? (
-              <ResponsiveContainer width="100%" height={250}>
-                <ComposedChart data={displayHistory}>
+              <ResponsiveContainer width="100%" height={280}>
+                <ComposedChart data={displayHistory} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                   <defs>
+                    {/* Main portfolio gradient with glow */}
                     <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.5}/>
-                      <stop offset="95%" stopColor="#10b981" stopOpacity={0.05}/>
+                      <stop offset="0%" stopColor="#10b981" stopOpacity={0.4}/>
+                      <stop offset="50%" stopColor="#10b981" stopOpacity={0.15}/>
+                      <stop offset="100%" stopColor="#10b981" stopOpacity={0}/>
+                    </linearGradient>
+                    {/* Glow filter for the line */}
+                    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+                      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+                      <feMerge>
+                        <feMergeNode in="coloredBlur"/>
+                        <feMergeNode in="SourceGraphic"/>
+                      </feMerge>
+                    </filter>
+                    {/* BTC comparison gradient */}
+                    <linearGradient id="colorBTC" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#F7931A" stopOpacity={0.15}/>
+                      <stop offset="100%" stopColor="#F7931A" stopOpacity={0}/>
                     </linearGradient>
                   </defs>
-                  <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} />
+                  {/* Subtle grid */}
+                  <XAxis 
+                    dataKey="date" 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fill: '#64748b', fontSize: 11 }}
+                    dy={10}
+                  />
                   <YAxis 
                     axisLine={false} 
                     tickLine={false} 
-                    tick={{ fill: '#64748b', fontSize: 12 }} 
+                    tick={{ fill: '#64748b', fontSize: 11 }} 
                     tickFormatter={(v) => `$${(v/1000).toFixed(0)}k`}
                     domain={[dataMin => Math.floor(dataMin * 0.9 / 5000) * 5000, dataMax => Math.ceil(dataMax * 1.05 / 5000) * 5000]}
+                    dx={-5}
                   />
+                  {/* Custom tooltip */}
                   <Tooltip 
-                    contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '12px' }}
-                    labelStyle={{ color: '#94a3b8' }}
-                    formatter={(value, name) => [`$${value?.toLocaleString() || 0}`, name === 'value' ? 'Portfolio' : 'BTC Hold']}
+                    content={({ active, payload, label }) => {
+                      if (active && payload && payload.length) {
+                        const portfolioVal = payload.find(p => p.dataKey === 'value')?.value || 0;
+                        const btcVal = payload.find(p => p.dataKey === 'btcHold')?.value || 0;
+                        const diff = portfolioVal - btcVal;
+                        return (
+                          <div className="bg-slate-900/95 backdrop-blur border border-slate-700 rounded-xl p-3 shadow-xl">
+                            <div className="text-slate-400 text-xs mb-2">{label}</div>
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between gap-4">
+                                <span className="text-emerald-400 text-xs">Portfolio</span>
+                                <span className="text-white font-bold">${portfolioVal.toLocaleString()}</span>
+                              </div>
+                              <div className="flex items-center justify-between gap-4">
+                                <span className="text-orange-400 text-xs">BTC Hold</span>
+                                <span className="text-white font-medium">${btcVal.toLocaleString()}</span>
+                              </div>
+                              <div className="border-t border-slate-700 pt-1 mt-1">
+                                <div className="flex items-center justify-between gap-4">
+                                  <span className="text-slate-400 text-xs">Alpha</span>
+                                  <span className={`font-bold ${diff >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                    {diff >= 0 ? '+' : ''}${diff.toLocaleString()}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
                   />
-                  <Area type="monotone" dataKey="value" stroke="#10b981" strokeWidth={3} fill="url(#colorValue)" />
-                  <Line type="monotone" dataKey="btcHold" stroke="#F7931A" strokeWidth={2} dot={false} strokeDasharray="5 5" />
+                  {/* BTC area (subtle background) */}
+                  <Area 
+                    type="monotone" 
+                    dataKey="btcHold" 
+                    stroke="transparent"
+                    fill="url(#colorBTC)" 
+                  />
+                  {/* BTC line (dashed) */}
+                  <Line 
+                    type="monotone" 
+                    dataKey="btcHold" 
+                    stroke="#F7931A" 
+                    strokeWidth={2} 
+                    dot={false} 
+                    strokeDasharray="6 4"
+                    opacity={0.7}
+                  />
+                  {/* Portfolio area (main gradient) */}
+                  <Area 
+                    type="monotone" 
+                    dataKey="value" 
+                    stroke="#10b981"
+                    strokeWidth={3}
+                    fill="url(#colorValue)"
+                    filter="url(#glow)"
+                    dot={false}
+                    activeDot={{ 
+                      r: 6, 
+                      fill: '#10b981', 
+                      stroke: '#fff', 
+                      strokeWidth: 2,
+                      filter: 'url(#glow)'
+                    }}
+                  />
                 </ComposedChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-[250px] flex items-center justify-center text-slate-500">No history data</div>
+              <div className="h-[280px] flex items-center justify-center text-slate-500">No history data</div>
             )}
           </div>
 
@@ -961,31 +1135,63 @@ export default function App() {
             <h2 className="text-lg font-semibold mb-4">Allocation</h2>
             {allocation.length > 0 ? (
               <>
-                <ResponsiveContainer width="100%" height={160}>
-                  <PieChart>
-                    <Pie
-                      data={allocation}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={50}
-                      outerRadius={70}
-                      paddingAngle={2}
-                      dataKey="value"
-                    >
-                      {allocation.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                  </PieChart>
-                </ResponsiveContainer>
+                <div className="relative">
+                  <ResponsiveContainer width="100%" height={180}>
+                    <PieChart>
+                      <defs>
+                        {allocation.map((entry, index) => (
+                          <filter key={`shadow-${index}`} id={`shadow-${index}`} x="-50%" y="-50%" width="200%" height="200%">
+                            <feDropShadow dx="0" dy="0" stdDeviation="3" floodColor={entry.color} floodOpacity="0.5"/>
+                          </filter>
+                        ))}
+                      </defs>
+                      <Pie
+                        data={allocation}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={55}
+                        outerRadius={75}
+                        paddingAngle={3}
+                        dataKey="value"
+                        animationBegin={0}
+                        animationDuration={1000}
+                        animationEasing="ease-out"
+                      >
+                        {allocation.map((entry, index) => (
+                          <Cell 
+                            key={`cell-${index}`} 
+                            fill={entry.color}
+                            stroke={entry.color}
+                            strokeWidth={1}
+                            style={{ filter: `drop-shadow(0 0 6px ${entry.color}66)` }}
+                          />
+                        ))}
+                      </Pie>
+                    </PieChart>
+                  </ResponsiveContainer>
+                  {/* Center total value */}
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <div className="text-center">
+                      <div className="text-xs text-slate-400">Total</div>
+                      <div className="text-lg font-bold text-white">${(totalValue/1000).toFixed(1)}k</div>
+                    </div>
+                  </div>
+                </div>
                 <div className="space-y-2 mt-2">
                   {allocation.map((item) => (
-                    <div key={item.name} className="flex items-center justify-between">
+                    <div key={item.name} className="flex items-center justify-between p-2 rounded-lg hover:bg-slate-700/30 transition-colors">
                       <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }}></div>
-                        <span className="text-slate-300">{item.name}</span>
+                        {getAssetLogo(item.name) ? (
+                          <img src={getAssetLogo(item.name)} alt={item.name} className="w-5 h-5" />
+                        ) : (
+                          <div className="w-4 h-4 rounded-full" style={{ backgroundColor: item.color, boxShadow: `0 0 8px ${item.color}66` }}></div>
+                        )}
+                        <span className="text-slate-300 font-medium">{item.name}</span>
                       </div>
-                      <span className="text-slate-400">{((item.value / totalValue) * 100).toFixed(0)}%</span>
+                      <div className="text-right">
+                        <span className="text-white font-medium">{((item.value / totalValue) * 100).toFixed(0)}%</span>
+                        <div className="text-xs text-slate-500">${item.value.toLocaleString('en-US', {maximumFractionDigits: 0})}</div>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -1002,39 +1208,46 @@ export default function App() {
           <div className="bg-slate-800/50 backdrop-blur rounded-2xl p-4 md:p-6 border border-slate-700/50">
             <h2 className="text-lg font-semibold mb-4">Current Positions</h2>
             <div className="space-y-3">
-              {positionsWithValue.filter(p => p.amount > 0).map((pos) => (
-                <div key={pos.asset} className="flex items-center justify-between p-3 md:p-4 bg-slate-700/30 rounded-xl">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                      pos.asset === 'BTC' ? 'bg-orange-500/20' : 
-                      pos.asset === 'ETH' ? 'bg-purple-500/20' : 
-                      pos.asset === 'SOL' ? 'bg-cyan-500/20' : 
-                      pos.asset === 'USDC' ? 'bg-emerald-500/20' : 'bg-pink-500/20'
-                    }`}>
-                      <span className={`font-bold text-sm ${
-                        pos.asset === 'BTC' ? 'text-orange-400' : 
-                        pos.asset === 'ETH' ? 'text-purple-400' : 
-                        pos.asset === 'SOL' ? 'text-cyan-400' : 
-                        pos.asset === 'USDC' ? 'text-emerald-400' : 'text-pink-400'
+              {positionsWithValue.filter(p => p.amount > 0).map((pos) => {
+                const change24h = get24hChange(pos.asset);
+                return (
+                  <div key={pos.asset} className="flex items-center justify-between p-3 md:p-4 bg-slate-700/30 rounded-xl">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                        pos.asset === 'BTC' ? 'bg-orange-500/20' : 
+                        pos.asset === 'ETH' ? 'bg-purple-500/20' : 
+                        pos.asset === 'SOL' ? 'bg-cyan-500/20' : 
+                        pos.asset === 'USDC' ? 'bg-emerald-500/20' : 'bg-pink-500/20'
                       }`}>
-                        {pos.asset === 'BTC' ? '₿' : pos.asset === 'USDC' ? '$' : pos.asset.charAt(0)}
-                      </span>
-                    </div>
-                    <div>
-                      <div className="font-medium">{pos.asset}</div>
-                      <div className="text-slate-400 text-sm">{pos.amount} {pos.asset}</div>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="font-medium">${pos.value.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</div>
-                    {pos.costBasis > 0 && (
-                      <div className={`text-sm ${pos.price >= pos.costBasis ? 'text-emerald-400' : 'text-red-400'}`}>
-                        {pos.price >= pos.costBasis ? '+' : ''}{((pos.price - pos.costBasis) / pos.costBasis * 100).toFixed(1)}%
+                        {getAssetLogo(pos.asset) ? (
+                          <img src={getAssetLogo(pos.asset)} alt={pos.asset} className="w-6 h-6" />
+                        ) : (
+                          <span className="font-bold text-sm text-slate-400">{pos.asset.charAt(0)}</span>
+                        )}
                       </div>
-                    )}
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{pos.asset}</span>
+                          {change24h !== 0 && (
+                            <span className={`text-xs px-1.5 py-0.5 rounded ${change24h >= 0 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
+                              {change24h >= 0 ? '+' : ''}{change24h.toFixed(1)}% 24h
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-slate-400 text-sm">{pos.amount} {pos.asset}</div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-medium">${pos.value.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</div>
+                      {pos.costBasis > 0 && (
+                        <div className={`text-sm ${pos.price >= pos.costBasis ? 'text-emerald-400' : 'text-red-400'}`}>
+                          {pos.price >= pos.costBasis ? '+' : ''}{((pos.price - pos.costBasis) / pos.costBasis * 100).toFixed(1)}%
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
@@ -1042,22 +1255,33 @@ export default function App() {
           <div className="bg-slate-800/50 backdrop-blur rounded-2xl p-4 md:p-6 border border-slate-700/50">
             <h2 className="text-lg font-semibold mb-4">Recent Trades <span className="text-sm text-slate-500 font-normal">({trades.length})</span></h2>
             <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
-              {[...trades].reverse().map((trade, i) => (
-                <div key={i} className="flex items-center justify-between py-2 border-b border-slate-700/50 last:border-0">
-                  <div className="flex items-center gap-3">
-                    <span className={`text-xs font-medium px-2 py-1 rounded ${
-                      trade.action === 'BUY' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'
-                    }`}>
-                      {trade.action}
-                    </span>
-                    <span className="font-medium">{trade.asset}</span>
+              {[...trades].reverse().map((trade, i) => {
+                const priceNum = parseFloat(trade.price?.toString().replace(/[$,]/g, '')) || 0;
+                const amountNum = parseFloat(trade.amount) || 0;
+                const usdValue = priceNum * amountNum;
+                return (
+                  <div key={i} className="flex items-center justify-between py-2 border-b border-slate-700/50 last:border-0">
+                    <div className="flex items-center gap-3">
+                      <span className={`text-xs font-medium px-2 py-1 rounded ${
+                        trade.action === 'BUY' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'
+                      }`}>
+                        {trade.action}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        {getAssetLogo(trade.asset) && (
+                          <img src={getAssetLogo(trade.asset)} alt={trade.asset} className="w-5 h-5" />
+                        )}
+                        <span className="font-medium">{trade.asset}</span>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm font-medium text-white">${usdValue.toLocaleString('en-US', { maximumFractionDigits: 0 })}</div>
+                      <div className="text-xs text-slate-400">{trade.amount} @ ${priceNum.toLocaleString()}</div>
+                      <div className="text-xs text-slate-500">{trade.date}</div>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <div className="text-sm text-slate-300">{trade.amount} @ {trade.price}</div>
-                    <div className="text-xs text-slate-500">{trade.date}</div>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
               {trades.length === 0 && (
                 <div className="text-slate-500 text-center py-4">No trades yet</div>
               )}
@@ -1079,7 +1303,12 @@ export default function App() {
                 const upside = currentPrice > 0 ? ((t.target - currentPrice) / currentPrice * 100).toFixed(0) : 0;
                 return (
                   <div key={t.asset} className="bg-slate-800/50 rounded-xl p-4">
-                    <div className="text-slate-400 text-sm mb-1">{t.asset}</div>
+                    <div className="flex items-center gap-2 mb-2">
+                      {getAssetLogo(t.asset) && (
+                        <img src={getAssetLogo(t.asset)} alt={t.asset} className="w-6 h-6" />
+                      )}
+                      <span className="text-slate-400 text-sm font-medium">{t.asset}</span>
+                    </div>
                     <div className="flex items-baseline gap-2">
                       <span className="text-xl md:text-2xl font-bold">${t.target.toLocaleString()}</span>
                       <span className="text-emerald-400 text-sm">+{upside}%</span>
@@ -1091,6 +1320,123 @@ export default function App() {
                   </div>
                 );
               })}
+            </div>
+          </div>
+        )}
+
+        {/* Goal Tracker & Max Drawdown Row */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          {/* Goal Tracker */}
+          <div className="bg-gradient-to-r from-violet-900/30 to-purple-900/30 backdrop-blur rounded-2xl p-4 md:p-6 border border-violet-700/30">
+            <div className="flex items-center gap-2 mb-4">
+              <span className="text-xl">🎯</span>
+              <h2 className="text-lg font-semibold">Goal Tracker</h2>
+              <span className="text-xs bg-violet-500/20 text-violet-400 px-2 py-1 rounded-full">
+                ${portfolioGoal.toLocaleString()}
+              </span>
+            </div>
+            <div className="mb-4">
+              <div className="flex justify-between text-sm mb-2">
+                <span className="text-slate-400">Progress</span>
+                <span className="text-white font-medium">{goalProgress.toFixed(1)}%</span>
+              </div>
+              <div className="h-4 bg-slate-700 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-gradient-to-r from-violet-500 to-purple-500 rounded-full transition-all duration-1000"
+                  style={{ width: `${goalProgress}%` }}
+                ></div>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-slate-800/50 rounded-xl p-3">
+                <div className="text-slate-400 text-xs mb-1">Current</div>
+                <div className="text-lg font-bold text-white">${totalValue.toLocaleString('en-US', {maximumFractionDigits: 0})}</div>
+              </div>
+              <div className="bg-slate-800/50 rounded-xl p-3">
+                <div className="text-slate-400 text-xs mb-1">To Goal</div>
+                <div className="text-lg font-bold text-violet-400">${amountToGoal.toLocaleString('en-US', {maximumFractionDigits: 0})}</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Max Drawdown */}
+          <div className="bg-gradient-to-r from-rose-900/30 to-red-900/30 backdrop-blur rounded-2xl p-4 md:p-6 border border-rose-700/30">
+            <div className="flex items-center gap-2 mb-4">
+              <span className="text-xl">📉</span>
+              <h2 className="text-lg font-semibold">Max Drawdown</h2>
+            </div>
+            <div className="text-center mb-4">
+              <div className="text-4xl font-bold text-red-400">
+                -{drawdownData.maxDrawdown.toFixed(1)}%
+              </div>
+              <div className="text-slate-400 text-sm mt-1">Worst peak-to-trough</div>
+            </div>
+            {drawdownData.peakDate && (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-slate-800/50 rounded-xl p-3">
+                  <div className="text-slate-400 text-xs mb-1">Peak</div>
+                  <div className="text-sm font-medium text-white">{drawdownData.peakDate}</div>
+                </div>
+                <div className="bg-slate-800/50 rounded-xl p-3">
+                  <div className="text-slate-400 text-xs mb-1">Trough</div>
+                  <div className="text-sm font-medium text-white">{drawdownData.troughDate}</div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Monthly Returns Heatmap */}
+        {monthlyReturns.length > 0 && (
+          <div className="bg-slate-800/50 backdrop-blur rounded-2xl p-4 md:p-6 border border-slate-700/50 mb-6">
+            <div className="flex items-center gap-2 mb-4">
+              <span className="text-xl">📅</span>
+              <h2 className="text-lg font-semibold">Monthly Returns</h2>
+            </div>
+            <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-12 gap-2">
+              {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map((month, i) => {
+                const monthData = monthlyReturns.find(m => m.month === i);
+                const returnVal = monthData?.return || null;
+                return (
+                  <div 
+                    key={month}
+                    className={`rounded-lg p-3 text-center ${
+                      returnVal === null ? 'bg-slate-700/30' :
+                      returnVal >= 10 ? 'bg-emerald-500/40' :
+                      returnVal >= 5 ? 'bg-emerald-500/30' :
+                      returnVal >= 0 ? 'bg-emerald-500/20' :
+                      returnVal >= -5 ? 'bg-red-500/20' :
+                      returnVal >= -10 ? 'bg-red-500/30' : 'bg-red-500/40'
+                    }`}
+                  >
+                    <div className="text-xs text-slate-400 mb-1">{month}</div>
+                    <div className={`text-sm font-bold ${
+                      returnVal === null ? 'text-slate-500' :
+                      returnVal >= 0 ? 'text-emerald-400' : 'text-red-400'
+                    }`}>
+                      {returnVal !== null ? `${returnVal >= 0 ? '+' : ''}${returnVal.toFixed(1)}%` : '-'}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="flex items-center justify-center gap-4 mt-4 text-xs text-slate-500">
+              <div className="flex items-center gap-1">
+                <div className="w-3 h-3 rounded bg-red-500/40"></div>
+                <span>&lt;-10%</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-3 h-3 rounded bg-red-500/20"></div>
+                <span>-10% to 0%</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-3 h-3 rounded bg-emerald-500/20"></div>
+                <span>0% to +5%</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-3 h-3 rounded bg-emerald-500/40"></div>
+                <span>&gt;+10%</span>
+              </div>
             </div>
           </div>
         )}
