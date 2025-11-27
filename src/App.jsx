@@ -202,9 +202,7 @@ export default function App() {
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
           <div>
             <div className="flex items-center gap-3 mb-1">
-              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center font-bold text-slate-900">
-                SB
-              </div>
+              <img src="/swissborg-logo.png" alt="SwissBorg" className="h-10" />
               <h1 className="text-2xl font-bold">Portfolio Tracker</h1>
             </div>
             <p className="text-slate-400">{clientName} • Started {startDate}</p>
