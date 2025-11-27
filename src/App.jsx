@@ -693,10 +693,82 @@ export default function App() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-12 h-12 border-4 border-emerald-400 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-slate-400">Loading portfolio...</p>
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white p-4 md:p-6">
+        <div className="max-w-6xl mx-auto">
+          {/* Header Skeleton */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-xl bg-slate-700 animate-pulse"></div>
+              <div>
+                <div className="h-5 w-48 bg-slate-700 rounded animate-pulse mb-2"></div>
+                <div className="h-4 w-32 bg-slate-800 rounded animate-pulse"></div>
+              </div>
+            </div>
+            <div className="h-8 w-24 bg-slate-800 rounded animate-pulse"></div>
+          </div>
+
+          {/* Stats Skeleton */}
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-4 mb-8">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="bg-slate-800/50 backdrop-blur rounded-2xl p-4 md:p-6 border border-slate-700/50">
+                <div className="h-3 w-20 bg-slate-700 rounded animate-pulse mb-3"></div>
+                <div className="h-8 w-28 bg-slate-700 rounded animate-pulse mb-2"></div>
+                <div className="h-3 w-16 bg-slate-800 rounded animate-pulse"></div>
+              </div>
+            ))}
+          </div>
+
+          {/* Chart & Allocation Skeleton */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div className="md:col-span-2 bg-slate-800/50 backdrop-blur rounded-2xl p-4 md:p-6 border border-slate-700/50">
+              <div className="h-5 w-32 bg-slate-700 rounded animate-pulse mb-4"></div>
+              <div className="h-64 bg-slate-700/50 rounded-xl animate-pulse"></div>
+            </div>
+            <div className="bg-slate-800/50 backdrop-blur rounded-2xl p-4 md:p-6 border border-slate-700/50">
+              <div className="h-5 w-24 bg-slate-700 rounded animate-pulse mb-4"></div>
+              <div className="h-48 w-48 mx-auto bg-slate-700/50 rounded-full animate-pulse"></div>
+            </div>
+          </div>
+
+          {/* Positions & Trades Skeleton */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <div className="bg-slate-800/50 backdrop-blur rounded-2xl p-4 md:p-6 border border-slate-700/50">
+              <div className="h-5 w-36 bg-slate-700 rounded animate-pulse mb-4"></div>
+              {[...Array(3)].map((_, i) => (
+                <div key={i} className="flex items-center justify-between py-3 border-b border-slate-700/50 last:border-0">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-slate-700 rounded-full animate-pulse"></div>
+                    <div>
+                      <div className="h-4 w-12 bg-slate-700 rounded animate-pulse mb-1"></div>
+                      <div className="h-3 w-20 bg-slate-800 rounded animate-pulse"></div>
+                    </div>
+                  </div>
+                  <div className="h-5 w-16 bg-slate-700 rounded animate-pulse"></div>
+                </div>
+              ))}
+            </div>
+            <div className="bg-slate-800/50 backdrop-blur rounded-2xl p-4 md:p-6 border border-slate-700/50">
+              <div className="h-5 w-32 bg-slate-700 rounded animate-pulse mb-4"></div>
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="flex items-center justify-between py-2 border-b border-slate-700/50 last:border-0">
+                  <div className="flex items-center gap-3">
+                    <div className="h-6 w-12 bg-slate-700 rounded animate-pulse"></div>
+                    <div className="h-4 w-10 bg-slate-700 rounded animate-pulse"></div>
+                  </div>
+                  <div className="text-right">
+                    <div className="h-4 w-24 bg-slate-700 rounded animate-pulse mb-1"></div>
+                    <div className="h-3 w-16 bg-slate-800 rounded animate-pulse"></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Loading indicator */}
+          <div className="flex items-center justify-center gap-3 text-slate-500">
+            <div className="w-5 h-5 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin"></div>
+            <span>Loading portfolio data...</span>
+          </div>
         </div>
       </div>
     );
@@ -714,17 +786,28 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white p-4 md:p-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white p-4 md:p-6 relative">
+      {/* Subtle background pattern */}
+      <div className="absolute inset-0 opacity-[0.02]" style={{
+        backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+      }} />
       <Confetti trigger={showConfetti} />
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-6xl mx-auto relative">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
-          <div>
-            <div className="flex items-center gap-3 mb-1">
-              <img src="/swissborg-logo.png" alt="SwissBorg" className="h-10" />
-              <h1 className="text-2xl font-bold">Portfolio Tracker</h1>
+          <div className="flex items-center gap-4">
+            {/* Client Avatar */}
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-lg font-bold shadow-lg">
+              {clientName.split(' ').map(n => n[0]).join('')}
             </div>
-            <p className="text-slate-400">{clientName} • Started {startDate}</p>
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-emerald-400 font-semibold">SwissBorg</span>
+                <span className="text-slate-500">•</span>
+                <h1 className="text-xl font-bold">Portfolio Tracker</h1>
+              </div>
+              <p className="text-slate-400">{clientName} • Started {startDate}</p>
+            </div>
           </div>
           <div className="text-left md:text-right">
             <div className="text-xs text-slate-500">Last updated</div>
@@ -1114,8 +1197,19 @@ export default function App() {
         )}
 
         {/* Footer */}
-        <div className="text-center text-slate-500 text-sm mt-8">
-          SwissBorg Managed Portfolio • Live Data
+        <div className="mt-12 pt-6 border-t border-slate-800">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 rounded-md bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-xs font-bold">S</div>
+              <span className="text-slate-400 text-sm">Managed by <span className="text-emerald-400 font-medium">SwissBorg</span></span>
+            </div>
+            <div className="flex items-center gap-4 text-xs text-slate-500">
+              <span>Live Data</span>
+              <span>•</span>
+              <span>Powered by CoinGecko</span>
+              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
