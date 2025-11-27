@@ -961,46 +961,57 @@ export default function App() {
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white p-4 md:p-6 relative overflow-hidden">
       {/* Aurora Background */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-1/2 -left-1/2 w-full h-full bg-gradient-to-br from-emerald-500/20 via-transparent to-transparent rounded-full blur-3xl animate-aurora-1"></div>
-        <div className="absolute -bottom-1/2 -right-1/2 w-full h-full bg-gradient-to-tl from-purple-500/15 via-transparent to-transparent rounded-full blur-3xl animate-aurora-2"></div>
-        <div className="absolute top-1/4 right-1/4 w-1/2 h-1/2 bg-gradient-to-bl from-cyan-500/10 via-transparent to-transparent rounded-full blur-3xl animate-aurora-3"></div>
+        <div className="absolute -top-1/2 -left-1/2 w-full h-full bg-gradient-to-br from-emerald-500/30 via-transparent to-transparent rounded-full blur-3xl animate-aurora-1"></div>
+        <div className="absolute -bottom-1/2 -right-1/2 w-full h-full bg-gradient-to-tl from-purple-500/25 via-transparent to-transparent rounded-full blur-3xl animate-aurora-2"></div>
+        <div className="absolute top-1/4 right-1/4 w-1/2 h-1/2 bg-gradient-to-bl from-cyan-500/20 via-transparent to-transparent rounded-full blur-3xl animate-aurora-3"></div>
       </div>
       
       {/* Animation Styles */}
       <style>{`
         @keyframes aurora-1 {
-          0%, 100% { transform: translate(0, 0) rotate(0deg); opacity: 0.3; }
-          25% { transform: translate(10%, 10%) rotate(5deg); opacity: 0.4; }
-          50% { transform: translate(5%, -5%) rotate(-5deg); opacity: 0.35; }
-          75% { transform: translate(-5%, 5%) rotate(3deg); opacity: 0.4; }
+          0%, 100% { transform: translate(0, 0) rotate(0deg); }
+          25% { transform: translate(5%, 5%) rotate(3deg); }
+          50% { transform: translate(2%, -3%) rotate(-2deg); }
+          75% { transform: translate(-3%, 2%) rotate(2deg); }
         }
         @keyframes aurora-2 {
-          0%, 100% { transform: translate(0, 0) rotate(0deg); opacity: 0.25; }
-          33% { transform: translate(-10%, -10%) rotate(-5deg); opacity: 0.35; }
-          66% { transform: translate(5%, -5%) rotate(5deg); opacity: 0.3; }
+          0%, 100% { transform: translate(0, 0) rotate(0deg); }
+          33% { transform: translate(-5%, -5%) rotate(-3deg); }
+          66% { transform: translate(3%, -3%) rotate(3deg); }
         }
         @keyframes aurora-3 {
-          0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.2; }
-          50% { transform: translate(-10%, 10%) scale(1.1); opacity: 0.3; }
+          0%, 100% { transform: translate(0, 0) scale(1); }
+          50% { transform: translate(-5%, 5%) scale(1.1); }
         }
-        .animate-aurora-1 { animation: aurora-1 15s ease-in-out infinite; }
-        .animate-aurora-2 { animation: aurora-2 20s ease-in-out infinite; }
-        .animate-aurora-3 { animation: aurora-3 25s ease-in-out infinite; }
+        .animate-aurora-1 { animation: aurora-1 12s ease-in-out infinite; }
+        .animate-aurora-2 { animation: aurora-2 16s ease-in-out infinite; }
+        .animate-aurora-3 { animation: aurora-3 20s ease-in-out infinite; }
         
         @keyframes fade-in-up {
-          from { opacity: 0; transform: translateY(20px); }
-          to { opacity: 1; transform: translateY(0); }
+          0% { opacity: 0; transform: translateY(30px); }
+          100% { opacity: 1; transform: translateY(0); }
         }
-        .animate-fade-in-up { animation: fade-in-up 0.5s ease-out forwards; opacity: 0; }
+        .animate-fade-in-up { 
+          animation: fade-in-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+        }
         
-        .card-hover { transition: all 0.3s ease; }
-        .card-hover:hover { transform: translateY(-4px); box-shadow: 0 20px 40px rgba(0,0,0,0.3); }
+        .stagger-1 { animation-delay: 0.05s; }
+        .stagger-2 { animation-delay: 0.1s; }
+        .stagger-3 { animation-delay: 0.15s; }
+        .stagger-4 { animation-delay: 0.2s; }
+        .stagger-5 { animation-delay: 0.25s; }
+        .stagger-6 { animation-delay: 0.3s; }
+        .stagger-7 { animation-delay: 0.35s; }
+        .stagger-8 { animation-delay: 0.4s; }
+        
+        .card-hover { transition: transform 0.3s ease, box-shadow 0.3s ease; }
+        .card-hover:hover { transform: translateY(-6px) scale(1.02); box-shadow: 0 25px 50px rgba(0,0,0,0.4); }
         
         @keyframes glow-pulse {
-          0%, 100% { box-shadow: 0 0 20px rgba(16, 185, 129, 0.3), 0 0 40px rgba(16, 185, 129, 0.1); }
-          50% { box-shadow: 0 0 30px rgba(16, 185, 129, 0.5), 0 0 60px rgba(16, 185, 129, 0.2); }
+          0%, 100% { box-shadow: 0 0 20px rgba(16, 185, 129, 0.4), 0 0 40px rgba(16, 185, 129, 0.2), inset 0 0 20px rgba(16, 185, 129, 0.05); }
+          50% { box-shadow: 0 0 40px rgba(16, 185, 129, 0.6), 0 0 80px rgba(16, 185, 129, 0.3), inset 0 0 30px rgba(16, 185, 129, 0.1); }
         }
-        .glow-profit { animation: glow-pulse 3s ease-in-out infinite; }
+        .glow-profit { animation: glow-pulse 2s ease-in-out infinite; }
       `}</style>
       
       {/* Subtle background pattern */}
@@ -1010,7 +1021,7 @@ export default function App() {
       <Confetti trigger={showConfetti} />
       <div className="max-w-6xl mx-auto relative">
         {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4 animate-fade-in-up">
           <div className="flex items-center gap-4">
             {/* SwissBorg Logo + Client Avatar */}
             <div className="flex items-center gap-3">
@@ -1032,7 +1043,7 @@ export default function App() {
 
         {/* Main Stats - Row 1 */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-4 mb-3">
-          <div className="bg-slate-800/50 backdrop-blur rounded-2xl p-4 md:p-6 border border-slate-700/50 card-hover animate-fade-in-up" style={{animationDelay: '0.1s'}}>
+          <div className="bg-slate-800/50 backdrop-blur rounded-2xl p-4 md:p-6 border border-slate-700/50 card-hover animate-fade-in-up stagger-1">
             <div className="text-slate-400 text-xs md:text-sm mb-1">Portfolio Value</div>
             <div className="text-xl md:text-3xl font-bold text-white">
               ${Math.round(animatedTotalValue).toLocaleString('en-US')}
@@ -1045,7 +1056,7 @@ export default function App() {
             </div>
           </div>
 
-          <div className="bg-slate-800/50 backdrop-blur rounded-2xl p-4 md:p-6 border border-slate-700/50 card-hover animate-fade-in-up" style={{animationDelay: '0.2s'}}>
+          <div className="bg-slate-800/50 backdrop-blur rounded-2xl p-4 md:p-6 border border-slate-700/50 card-hover animate-fade-in-up stagger-2">
             <div className="text-slate-400 text-xs md:text-sm mb-1">Total Invested</div>
             <div className="text-xl md:text-3xl font-bold text-white">
               ${totalInvested.toLocaleString()}
@@ -1053,7 +1064,7 @@ export default function App() {
             <div className="text-slate-500 text-xs md:text-sm mt-2">Capital deployed</div>
           </div>
 
-          <div className={`bg-slate-800/50 backdrop-blur rounded-2xl p-4 md:p-6 border card-hover animate-fade-in-up ${animatedProfit >= 0 ? 'border-emerald-500/50 glow-profit' : 'border-slate-700/50'}`} style={{animationDelay: '0.3s'}}>
+          <div className={`bg-slate-800/50 backdrop-blur rounded-2xl p-4 md:p-6 border card-hover animate-fade-in-up stagger-3 ${animatedProfit >= 0 ? 'border-emerald-500/50 glow-profit' : 'border-slate-700/50'}`}>
             <div className="text-slate-400 text-xs md:text-sm mb-1">Profit</div>
             <div className={`text-xl md:text-3xl font-bold ${animatedProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
               {animatedProfit >= 0 ? '+' : ''}${Math.round(animatedProfit).toLocaleString('en-US')}
@@ -1061,7 +1072,7 @@ export default function App() {
             <div className="text-slate-500 text-xs md:text-sm mt-2">Unrealized</div>
           </div>
 
-          <div className="bg-gradient-to-br from-emerald-900/50 to-teal-900/50 backdrop-blur rounded-2xl p-4 md:p-6 border border-emerald-700/50 card-hover animate-fade-in-up" style={{animationDelay: '0.4s'}}>
+          <div className="bg-gradient-to-br from-emerald-900/50 to-teal-900/50 backdrop-blur rounded-2xl p-4 md:p-6 border border-emerald-700/50 card-hover animate-fade-in-up stagger-4">
             <div className="text-emerald-300 text-xs md:text-sm mb-1">Beating BTC by</div>
             <div className={`text-xl md:text-3xl font-bold ${animatedBeatingBtc >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
               {animatedBeatingBtc >= 0 ? '+' : ''}${Math.round(animatedBeatingBtc).toLocaleString('en-US')}
@@ -1069,7 +1080,7 @@ export default function App() {
             <div className="text-emerald-400/60 text-xs md:text-sm mt-2">vs Buy & Hold</div>
           </div>
 
-          <div className="bg-slate-800/50 backdrop-blur rounded-2xl p-4 md:p-6 border border-slate-700/50 card-hover animate-fade-in-up" style={{animationDelay: '0.5s'}}>
+          <div className="bg-slate-800/50 backdrop-blur rounded-2xl p-4 md:p-6 border border-slate-700/50 card-hover animate-fade-in-up stagger-5">
             <div className="text-slate-400 text-xs md:text-sm mb-1">Cash Available</div>
             <div className="text-xl md:text-3xl font-bold text-emerald-400">
               ${(positionsWithValue.find(p => p.asset === 'USDC')?.value || 0).toLocaleString('en-US', {maximumFractionDigits: 0})}
@@ -1080,7 +1091,7 @@ export default function App() {
 
         {/* Main Stats - Row 2: Live Prices */}
         <div className="grid grid-cols-3 gap-3 md:gap-4 mb-8">
-          <div className="bg-slate-800/50 backdrop-blur rounded-xl p-3 md:p-4 border border-slate-700/50 card-hover animate-fade-in-up" style={{animationDelay: '0.6s'}}>
+          <div className="bg-slate-800/50 backdrop-blur rounded-xl p-3 md:p-4 border border-slate-700/50 card-hover animate-fade-in-up stagger-6">
             <div className="flex items-center gap-2">
               <img src={getAssetLogo('BTC')} alt="BTC" className="w-6 h-6" />
               <div>
@@ -1093,7 +1104,7 @@ export default function App() {
             </div>
           </div>
           
-          <div className="bg-slate-800/50 backdrop-blur rounded-xl p-3 md:p-4 border border-slate-700/50 card-hover animate-fade-in-up" style={{animationDelay: '0.7s'}}>
+          <div className="bg-slate-800/50 backdrop-blur rounded-xl p-3 md:p-4 border border-slate-700/50 card-hover animate-fade-in-up stagger-7">
             <div className="flex items-center gap-2">
               <img src={getAssetLogo('ETH')} alt="ETH" className="w-6 h-6" />
               <div>
@@ -1106,7 +1117,7 @@ export default function App() {
             </div>
           </div>
           
-          <div className="bg-slate-800/50 backdrop-blur rounded-xl p-3 md:p-4 border border-slate-700/50 card-hover animate-fade-in-up" style={{animationDelay: '0.8s'}}>
+          <div className="bg-slate-800/50 backdrop-blur rounded-xl p-3 md:p-4 border border-slate-700/50 card-hover animate-fade-in-up stagger-8">
             <div className="flex items-center gap-2">
               <img src={getAssetLogo('SOL')} alt="SOL" className="w-6 h-6" />
               <div>
