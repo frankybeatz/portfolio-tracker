@@ -403,11 +403,46 @@ export default function App() {
           start_date: 'June 20, 2025',
           total_invested: '50069'
         };
-        configData.forEach(row => {
-          if (row.key && row.value) {
-            configObj[row.key] = row.value;
+        
+        // Handle both normal format AND weird merged format from Google Sheets
+        // Weird format looks like: headers "key client_name", "value Guillaume Roemaet"
+        // Then data rows have: { "key client_name": "start_date", "value Guillaume Roemaet": "2025-03-14" }
+        
+        if (configData.length > 0) {
+          const firstRow = configData[0];
+          const keys = Object.keys(firstRow);
+          
+          // Detect weird format: column names contain both "key" and spaces
+          const keyCol = keys.find(k => k.startsWith('key ') || k === 'key');
+          const valueCol = keys.find(k => k.startsWith('value ') || k === 'value');
+          
+          if (keyCol && keyCol.startsWith('key ') && valueCol && valueCol.startsWith('value ')) {
+            // Weird merged format detected
+            // Extract first row data from column NAMES
+            const firstKey = keyCol.replace('key ', '');
+            const firstValue = valueCol.replace('value ', '');
+            if (firstKey && firstValue) {
+              configObj[firstKey] = firstValue;
+            }
+            
+            // Process remaining rows using these weird column names
+            configData.forEach(row => {
+              const k = row[keyCol];
+              const v = row[valueCol];
+              if (k && v) {
+                configObj[k] = v;
+              }
+            });
+          } else {
+            // Normal format
+            configData.forEach(row => {
+              if (row.key && row.value) {
+                configObj[row.key] = row.value;
+              }
+            });
           }
-        });
+        }
+        
         setConfig(configObj);
 
         // Parse trades first (needed for position calculation)
