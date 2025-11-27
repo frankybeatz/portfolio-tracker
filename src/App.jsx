@@ -91,16 +91,19 @@ function Confetti({ trigger }) {
 }
 
 // ============================================
-// 🔧 CONFIGURATION - UPDATE THIS WITH YOUR SHEET ID
+// 🔧 CONFIGURATION
 // ============================================
-const SHEET_ID = '1tDP0fUvWQhOLk0i5i4KE5TrWyg-2bLRgzDnvR1ZGox0';
+// Sheet ID comes from environment variable (set in Vercel dashboard)
+// Falls back to Chloé's sheet for local development
+const SHEET_ID = import.meta.env.VITE_SHEET_ID || '1tDP0fUvWQhOLk0i5i4KE5TrWyg-2bLRgzDnvR1ZGox0';
 
-// Carla's allocation (mirrors Chloé's performance)
+// Client-specific config (can also be moved to env vars)
 const CARLA_CONFIG = {
   name: 'Carla',
   initialInvestment: 2000,
   startDate: 'July 4, 2025',
   startDateObj: new Date('2025-07-04'),
+  enabled: import.meta.env.VITE_SHOW_CARLA !== 'false', // Hide Carla for other clients
 };
 
 // Sheet URLs (each tab published as CSV) - with cache buster
@@ -839,37 +842,39 @@ export default function App() {
           </div>
         )}
 
-        {/* Carla's Portfolio */}
-        <div className="bg-gradient-to-r from-purple-900/30 to-pink-900/30 backdrop-blur rounded-2xl p-4 md:p-6 border border-purple-700/30 mb-6">
-          <div className="flex items-center gap-2 mb-4">
-            <span className="text-xl">👤</span>
-            <h2 className="text-lg font-semibold">{CARLA_CONFIG.name}'s Portfolio</h2>
-            <span className="text-xs bg-purple-500/20 text-purple-400 px-2 py-1 rounded-full">Mirror Strategy</span>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="bg-slate-800/50 rounded-xl p-4">
-              <div className="text-slate-400 text-sm mb-1">Portfolio Value</div>
-              <div className="text-xl md:text-2xl font-bold">${carlaValue.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</div>
+        {/* Carla's Portfolio - Only shown for Chloé */}
+        {CARLA_CONFIG.enabled && (
+          <div className="bg-gradient-to-r from-purple-900/30 to-pink-900/30 backdrop-blur rounded-2xl p-4 md:p-6 border border-purple-700/30 mb-6">
+            <div className="flex items-center gap-2 mb-4">
+              <span className="text-xl">👤</span>
+              <h2 className="text-lg font-semibold">{CARLA_CONFIG.name}'s Portfolio</h2>
+              <span className="text-xs bg-purple-500/20 text-purple-400 px-2 py-1 rounded-full">Mirror Strategy</span>
             </div>
-            <div className="bg-slate-800/50 rounded-xl p-4">
-              <div className="text-slate-400 text-sm mb-1">Invested</div>
-              <div className="text-xl md:text-2xl font-bold">${CARLA_CONFIG.initialInvestment.toLocaleString()}</div>
-            </div>
-            <div className="bg-slate-800/50 rounded-xl p-4">
-              <div className="text-slate-400 text-sm mb-1">Profit</div>
-              <div className="text-xl md:text-2xl font-bold text-emerald-400">
-                +${(carlaValue - CARLA_CONFIG.initialInvestment).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-slate-800/50 rounded-xl p-4">
+                <div className="text-slate-400 text-sm mb-1">Portfolio Value</div>
+                <div className="text-xl md:text-2xl font-bold">${carlaValue.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</div>
+              </div>
+              <div className="bg-slate-800/50 rounded-xl p-4">
+                <div className="text-slate-400 text-sm mb-1">Invested</div>
+                <div className="text-xl md:text-2xl font-bold">${CARLA_CONFIG.initialInvestment.toLocaleString()}</div>
+              </div>
+              <div className="bg-slate-800/50 rounded-xl p-4">
+                <div className="text-slate-400 text-sm mb-1">Profit</div>
+                <div className="text-xl md:text-2xl font-bold text-emerald-400">
+                  +${(carlaValue - CARLA_CONFIG.initialInvestment).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                </div>
+              </div>
+              <div className="bg-slate-800/50 rounded-xl p-4">
+                <div className="text-slate-400 text-sm mb-1">Return</div>
+                <div className="text-xl md:text-2xl font-bold text-emerald-400">+{carlaReturn}%</div>
               </div>
             </div>
-            <div className="bg-slate-800/50 rounded-xl p-4">
-              <div className="text-slate-400 text-sm mb-1">Return</div>
-              <div className="text-xl md:text-2xl font-bold text-emerald-400">+{carlaReturn}%</div>
+            <div className="mt-3 text-sm text-slate-500">
+              Started {CARLA_CONFIG.startDate} • Mirrors {clientName}'s allocation
             </div>
           </div>
-          <div className="mt-3 text-sm text-slate-500">
-            Started {CARLA_CONFIG.startDate} • Mirrors {clientName}'s allocation
-          </div>
-        </div>
+        )}
 
         {/* Footer */}
         <div className="text-center text-slate-500 text-sm mt-8">
