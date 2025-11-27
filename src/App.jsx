@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Papa from 'papaparse';
-import { PieChart, Pie, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
+import { PieChart, Pie, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, AreaChart, Area, Line, Legend } from 'recharts';
 
 // ============================================
 // 🔧 CONFIGURATION - UPDATE THIS WITH YOUR SHEET ID
@@ -51,6 +51,28 @@ async function fetchPrices() {
   } catch (err) {
     console.error('Failed to fetch prices:', err);
     return { BTC: null, ETH: null, SOL: null };
+  }
+}
+
+// Fetch historical BTC prices from CoinGecko
+async function fetchBTCHistory() {
+  try {
+    // Get 365 days of daily BTC prices
+    const response = await fetch('https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=365&interval=daily');
+    const data = await response.json();
+    
+    // Convert to date -> price map
+    const priceMap = {};
+    data.prices?.forEach(([timestamp, price]) => {
+      const date = new Date(timestamp);
+      const key = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+      priceMap[key] = price;
+    });
+    
+    return priceMap;
+  } catch (err) {
+    console.error('Failed to fetch BTC history:', err);
+    return {};
   }
 }
 
@@ -223,6 +245,7 @@ export default function App() {
   const [trades, setTrades] = useState([]);
   const [targets, setTargets] = useState([]);
   const [prices, setPrices] = useState({ BTC: null, ETH: null, SOL: null });
+  const [btcHistory, setBtcHistory] = useState({});
   const [lastUpdate, setLastUpdate] = useState(new Date());
 
   // Load all data
@@ -232,14 +255,17 @@ export default function App() {
         setLoading(true);
         
         // Fetch all sheets in parallel
-        const [configData, positionsData, historyData, tradesData, targetsData, livePrices] = await Promise.all([
+        const [configData, positionsData, historyData, tradesData, targetsData, livePrices, btcPriceHistory] = await Promise.all([
           fetchSheet(SHEETS.config()),
           fetchSheet(SHEETS.positions()),
           fetchSheet(SHEETS.history()),
           fetchSheet(SHEETS.trades()),
           fetchSheet(SHEETS.targets()),
           fetchPrices(),
+          fetchBTCHistory(),
         ]);
+        
+        setBtcHistory(btcPriceHistory);
 
         // Parse config (key-value pairs) with hardcoded fallback
         const configObj = {
@@ -350,7 +376,30 @@ export default function App() {
   const carlaReturn = totalReturn; // Same return % as Chloé
 
   // Use provided history, or calculate from trades if history is empty/minimal
-  const displayHistory = history.length > 3 ? history : calculateHistoryFromTrades(trades, prices, totalInvested);
+  const baseHistory = history.length > 3 ? history : calculateHistoryFromTrades(trades, prices, totalInvested);
+  
+  // Calculate BTC buy & hold comparison
+  // Find BTC price on start date (June 20, 2025) - we'll use first available price as baseline
+  const getDateKey = (dateStr) => {
+    const date = parseTradeDate(dateStr);
+    return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+  };
+  
+  // Get starting BTC price (around June 20, 2025 - use ~$65,000 as fallback for June 2025)
+  const startBtcPrice = btcHistory[getDateKey('Jun 20')] || 65000;
+  const btcBought = totalInvested / startBtcPrice; // How much BTC you could have bought
+  
+  // Add BTC comparison to each history point
+  const displayHistory = baseHistory.map(point => {
+    const dateKey = getDateKey(point.date);
+    const btcPriceOnDate = btcHistory[dateKey] || prices.BTC || startBtcPrice;
+    const btcHoldValue = Math.round(btcBought * btcPriceOnDate);
+    
+    return {
+      ...point,
+      btcHold: btcHoldValue,
+    };
+  });
 
   const allocation = positionsWithValue
     .filter(p => p.value > 0)
@@ -447,7 +496,19 @@ export default function App() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           {/* Performance Chart */}
           <div className="md:col-span-2 bg-slate-800/50 backdrop-blur rounded-2xl p-4 md:p-6 border border-slate-700/50">
-            <h2 className="text-lg font-semibold mb-4">Performance</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold">Performance</h2>
+              <div className="flex items-center gap-4 text-xs">
+                <div className="flex items-center gap-1">
+                  <div className="w-3 h-0.5 bg-emerald-400"></div>
+                  <span className="text-slate-400">Portfolio</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <div className="w-3 h-0.5 bg-orange-400"></div>
+                  <span className="text-slate-400">BTC Buy & Hold</span>
+                </div>
+              </div>
+            </div>
             {displayHistory.length > 0 ? (
               <ResponsiveContainer width="100%" height={250}>
                 <AreaChart data={displayHistory}>
@@ -468,9 +529,10 @@ export default function App() {
                   <Tooltip 
                     contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '12px' }}
                     labelStyle={{ color: '#94a3b8' }}
-                    formatter={(value) => [`$${value.toLocaleString()}`, 'Value']}
+                    formatter={(value, name) => [`$${value?.toLocaleString() || 0}`, name === 'value' ? 'Portfolio' : 'BTC Hold']}
                   />
                   <Area type="monotone" dataKey="value" stroke="#10b981" strokeWidth={3} fill="url(#colorValue)" />
+                  <Line type="monotone" dataKey="btcHold" stroke="#F7931A" strokeWidth={2} dot={false} strokeDasharray="5 5" />
                 </AreaChart>
               </ResponsiveContainer>
             ) : (
