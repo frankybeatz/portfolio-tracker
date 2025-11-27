@@ -1,6 +1,94 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Papa from 'papaparse';
 import { PieChart, Pie, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, ComposedChart, Area, Line, Legend } from 'recharts';
+
+// Animated counter hook
+function useAnimatedNumber(value, duration = 1000) {
+  const [displayValue, setDisplayValue] = useState(0);
+  const previousValue = useRef(0);
+  
+  useEffect(() => {
+    if (value === previousValue.current) return;
+    
+    const startValue = previousValue.current;
+    const endValue = value;
+    const startTime = Date.now();
+    
+    const animate = () => {
+      const now = Date.now();
+      const progress = Math.min((now - startTime) / duration, 1);
+      
+      // Easing function (ease out cubic)
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const current = startValue + (endValue - startValue) * eased;
+      
+      setDisplayValue(current);
+      
+      if (progress < 1) {
+        requestAnimationFrame(animate);
+      } else {
+        previousValue.current = endValue;
+      }
+    };
+    
+    requestAnimationFrame(animate);
+  }, [value, duration]);
+  
+  return displayValue;
+}
+
+// Confetti component
+function Confetti({ trigger }) {
+  const [particles, setParticles] = useState([]);
+  
+  useEffect(() => {
+    if (!trigger) return;
+    
+    const colors = ['#10b981', '#F7931A', '#627EEA', '#00FFA3', '#FFD700', '#FF6B6B'];
+    const newParticles = Array.from({ length: 50 }, (_, i) => ({
+      id: i,
+      x: Math.random() * 100,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      delay: Math.random() * 0.5,
+      duration: 2 + Math.random() * 2,
+    }));
+    
+    setParticles(newParticles);
+    
+    const timer = setTimeout(() => setParticles([]), 4000);
+    return () => clearTimeout(timer);
+  }, [trigger]);
+  
+  if (particles.length === 0) return null;
+  
+  return (
+    <div className="fixed inset-0 pointer-events-none z-50 overflow-hidden">
+      {particles.map((p) => (
+        <div
+          key={p.id}
+          className="absolute w-3 h-3 animate-confetti"
+          style={{
+            left: `${p.x}%`,
+            top: '-20px',
+            backgroundColor: p.color,
+            borderRadius: Math.random() > 0.5 ? '50%' : '0',
+            animationDelay: `${p.delay}s`,
+            animationDuration: `${p.duration}s`,
+          }}
+        />
+      ))}
+      <style>{`
+        @keyframes confetti {
+          0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+          100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+        }
+        .animate-confetti {
+          animation: confetti linear forwards;
+        }
+      `}</style>
+    </div>
+  );
+}
 
 // ============================================
 // 🔧 CONFIGURATION - UPDATE THIS WITH YOUR SHEET ID
@@ -278,6 +366,14 @@ export default function App() {
   const [prices, setPrices] = useState({ BTC: null, ETH: null, SOL: null });
   const [btcHistory, setBtcHistory] = useState({});
   const [lastUpdate, setLastUpdate] = useState(new Date());
+  const [showConfetti, setShowConfetti] = useState(false);
+  const [allTimeHigh, setAllTimeHigh] = useState(() => {
+    // Get stored ATH from localStorage
+    if (typeof window !== 'undefined') {
+      return parseFloat(localStorage.getItem('portfolioATH') || '0');
+    }
+    return 0;
+  });
 
   // Load all data
   useEffect(() => {
@@ -400,6 +496,32 @@ export default function App() {
   const clientName = config.client_name || 'Portfolio';
   const startDate = config.start_date || '';
 
+  // Animated values
+  const animatedTotalValue = useAnimatedNumber(totalValue, 1200);
+  const animatedProfit = useAnimatedNumber(totalValue - totalInvested, 1200);
+  const animatedBtcPrice = useAnimatedNumber(prices.BTC || 91500, 800);
+
+  // Calculate BTC buy & hold value for comparison
+  const startBtcPriceForComparison = 105000; // BTC price on June 20, 2025
+  const btcHoldValue = (totalInvested / startBtcPriceForComparison) * (prices.BTC || 91500);
+  const beatingBtcBy = totalValue - btcHoldValue;
+  const animatedBeatingBtc = useAnimatedNumber(beatingBtcBy, 1200);
+
+  // Check for all-time high and trigger confetti
+  useEffect(() => {
+    if (totalValue > allTimeHigh && totalValue > totalInvested) {
+      setAllTimeHigh(totalValue);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('portfolioATH', totalValue.toString());
+      }
+      // Only trigger confetti if it's a meaningful increase (not first load)
+      if (allTimeHigh > 0) {
+        setShowConfetti(true);
+        setTimeout(() => setShowConfetti(false), 100);
+      }
+    }
+  }, [totalValue, allTimeHigh, totalInvested]);
+
   // Calculate Carla's portfolio (mirrors Chloé's return since July 4)
   // Chloé's return since July 4: portfolio was ~$32k on Jul 4, now at totalValue
   // Carla started with $2000, so her value = $2000 * (1 + return%)
@@ -464,6 +586,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white p-4 md:p-6">
+      <Confetti trigger={showConfetti} />
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
@@ -481,11 +604,11 @@ export default function App() {
         </div>
 
         {/* Main Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-4 mb-8">
           <div className="bg-slate-800/50 backdrop-blur rounded-2xl p-4 md:p-6 border border-slate-700/50">
             <div className="text-slate-400 text-xs md:text-sm mb-1">Portfolio Value</div>
             <div className="text-xl md:text-3xl font-bold text-white">
-              ${totalValue.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+              ${Math.round(animatedTotalValue).toLocaleString('en-US')}
             </div>
             <div className="flex items-center gap-1 mt-2">
               <span className={`text-sm font-medium ${parseFloat(totalReturn) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
@@ -505,16 +628,24 @@ export default function App() {
 
           <div className="bg-slate-800/50 backdrop-blur rounded-2xl p-4 md:p-6 border border-slate-700/50">
             <div className="text-slate-400 text-xs md:text-sm mb-1">Profit</div>
-            <div className={`text-xl md:text-3xl font-bold ${totalValue - totalInvested >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-              {totalValue - totalInvested >= 0 ? '+' : ''}${(totalValue - totalInvested).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+            <div className={`text-xl md:text-3xl font-bold ${animatedProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+              {animatedProfit >= 0 ? '+' : ''}${Math.round(animatedProfit).toLocaleString('en-US')}
             </div>
             <div className="text-slate-500 text-xs md:text-sm mt-2">Unrealized</div>
+          </div>
+
+          <div className="bg-gradient-to-br from-emerald-900/50 to-teal-900/50 backdrop-blur rounded-2xl p-4 md:p-6 border border-emerald-700/50">
+            <div className="text-emerald-300 text-xs md:text-sm mb-1">Beating BTC by</div>
+            <div className={`text-xl md:text-3xl font-bold ${animatedBeatingBtc >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+              {animatedBeatingBtc >= 0 ? '+' : ''}${Math.round(animatedBeatingBtc).toLocaleString('en-US')}
+            </div>
+            <div className="text-emerald-400/60 text-xs md:text-sm mt-2">vs Buy & Hold</div>
           </div>
 
           <div className="bg-slate-800/50 backdrop-blur rounded-2xl p-4 md:p-6 border border-slate-700/50">
             <div className="text-slate-400 text-xs md:text-sm mb-1">BTC Price</div>
             <div className="text-xl md:text-3xl font-bold text-orange-400">
-              ${(prices.BTC || 91500).toLocaleString()}
+              ${Math.round(animatedBtcPrice).toLocaleString()}
             </div>
             <div className="flex items-center gap-1 mt-2">
               <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
