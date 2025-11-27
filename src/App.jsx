@@ -570,10 +570,17 @@ export default function App() {
         })));
 
         // Parse targets (only asset and target needed - current price is live)
-        setTargets(targetsData.map(row => ({
-          asset: row.asset,
-          target: parseFloat(row.target) || 0,
-        })));
+        setTargets(targetsData.map(row => {
+          let asset = (row.asset || '').trim();
+          // Normalize asset names
+          if (asset.toLowerCase() === 'bitcoin') asset = 'BTC';
+          if (asset.toLowerCase() === 'ethereum') asset = 'ETH';
+          if (asset.toLowerCase() === 'solana') asset = 'SOL';
+          return {
+            asset,
+            target: parseFloat(row.target) || 0,
+          };
+        }));
 
         setPrices(livePrices);
         setLastUpdate(new Date());
@@ -606,10 +613,11 @@ export default function App() {
 
   // Calculate portfolio values
   const getAssetPrice = (asset) => {
-    if (asset === 'BTC') return prices.BTC || 91500;
-    if (asset === 'ETH') return prices.ETH || 3050;
-    if (asset === 'SOL') return prices.SOL || 143;
-    if (asset === 'USDC' || asset === 'USD') return 1;
+    const a = (asset || '').toUpperCase().trim();
+    if (a === 'BTC' || a === 'BITCOIN') return prices.BTC || 91500;
+    if (a === 'ETH' || a === 'ETHEREUM') return prices.ETH || 3050;
+    if (a === 'SOL' || a === 'SOLANA') return prices.SOL || 143;
+    if (a === 'USDC' || a === 'USD') return 1;
     return 0;
   };
 
@@ -796,16 +804,15 @@ export default function App() {
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
           <div className="flex items-center gap-4">
-            {/* Client Avatar */}
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-lg font-bold shadow-lg">
-              {clientName.split(' ').map(n => n[0]).join('')}
+            {/* SwissBorg Logo + Client Avatar */}
+            <div className="flex items-center gap-3">
+              <img src="/swissborg-logo.png" alt="SwissBorg" className="h-10" />
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-sm font-bold shadow-lg">
+                {clientName.split(' ').map(n => n[0]).join('')}
+              </div>
             </div>
             <div>
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-emerald-400 font-semibold">SwissBorg</span>
-                <span className="text-slate-500">•</span>
-                <h1 className="text-xl font-bold">Portfolio Tracker</h1>
-              </div>
+              <h1 className="text-xl font-bold">Portfolio Tracker</h1>
               <p className="text-slate-400">{clientName} • Started {startDate}</p>
             </div>
           </div>
