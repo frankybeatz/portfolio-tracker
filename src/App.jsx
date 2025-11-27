@@ -153,25 +153,38 @@ function calculatePositionsFromTrades(trades, totalInvested) {
   const holdings = {}; // { asset: { amount, totalCost, trades } }
   let usdcBalance = totalInvested; // Start with total invested
   
-  trades.forEach(trade => {
+  // Sort trades by date (oldest first) to process in order
+  const sortedTrades = [...trades].sort((a, b) => {
+    const dateA = parseTradeDate(a.date);
+    const dateB = parseTradeDate(b.date);
+    return dateA - dateB;
+  });
+  
+  sortedTrades.forEach(trade => {
     const asset = trade.asset;
     const amount = parseFloat(trade.amount) || 0;
     const price = parseFloat(trade.price?.replace(/[$,]/g, '')) || 0;
     
     if (!holdings[asset]) {
-      holdings[asset] = { amount: 0, totalCost: 0, buyCount: 0 };
+      holdings[asset] = { amount: 0, totalCost: 0 };
     }
     
     if (trade.action === 'BUY') {
       holdings[asset].amount += amount;
       holdings[asset].totalCost += amount * price;
-      holdings[asset].buyCount += 1;
       usdcBalance -= amount * price; // Spent cash to buy
     } else if (trade.action === 'SELL') {
-      // Reduce amount, adjust cost proportionally
-      const sellRatio = Math.min(amount / holdings[asset].amount, 1);
-      holdings[asset].totalCost -= holdings[asset].totalCost * sellRatio;
-      holdings[asset].amount -= amount;
+      // If selling entire position (or close to it), reset cost basis
+      if (amount >= holdings[asset].amount * 0.99) {
+        // Full exit - reset everything
+        holdings[asset].amount = 0;
+        holdings[asset].totalCost = 0;
+      } else {
+        // Partial sell - reduce proportionally
+        const sellRatio = Math.min(amount / holdings[asset].amount, 1);
+        holdings[asset].totalCost -= holdings[asset].totalCost * sellRatio;
+        holdings[asset].amount -= amount;
+      }
       usdcBalance += amount * price; // Received cash from sale
     }
   });
@@ -184,7 +197,7 @@ function calculatePositionsFromTrades(trades, totalInvested) {
       positions.push({
         asset,
         amount: h.amount,
-        costBasis: h.amount > 0 ? h.totalCost / h.amount : 0, // Average cost
+        costBasis: h.amount > 0 ? h.totalCost / h.amount : 0, // Average cost of current position only
       });
     }
   });
