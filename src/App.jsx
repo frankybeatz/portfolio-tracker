@@ -820,7 +820,7 @@ export default function App() {
           <div className="bg-slate-800/50 backdrop-blur rounded-2xl p-4 md:p-6 border border-slate-700/50">
             <h2 className="text-lg font-semibold mb-4">Recent Trades <span className="text-sm text-slate-500 font-normal">({trades.length})</span></h2>
             <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
-              {trades.map((trade, i) => (
+              {[...trades].reverse().map((trade, i) => (
                 <div key={i} className="flex items-center justify-between py-2 border-b border-slate-700/50 last:border-0">
                   <div className="flex items-center gap-3">
                     <span className={`text-xs font-medium px-2 py-1 rounded ${
