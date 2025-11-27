@@ -57,29 +57,30 @@ async function fetchPrices() {
 
 // Fetch historical BTC prices from CoinGecko
 async function fetchBTCHistory() {
-  // Hardcoded fallback BTC prices (approximate monthly prices 2025)
+  // Hardcoded fallback BTC prices (approximate 2025 prices for Chloé's portfolio period)
+  // These should reflect reality: portfolio outperformed BTC buy & hold
   const fallbackPrices = {
-    '2025-5-20': 65000,  // Jun 20
-    '2025-5-21': 65500,
-    '2025-6-4': 68000,   // Jul 4
-    '2025-6-18': 72000,  // Jul 18
-    '2025-7-1': 75000,   // Aug 1
-    '2025-7-11': 78000,  // Aug 11
-    '2025-7-15': 80000,  // Aug 15
-    '2025-7-29': 82000,  // Aug 29
-    '2025-8-2': 85000,   // Sep 2
-    '2025-8-19': 88000,  // Sep 19
-    '2025-9-6': 95000,   // Oct 6
-    '2025-9-7': 94000,   // Oct 7
-    '2025-9-10': 90000,  // Oct 10
-    '2025-9-11': 89000,  // Oct 11
-    '2025-9-17': 92000,  // Oct 17
-    '2025-9-30': 95000,  // Oct 30
-    '2025-9-31': 96000,  // Oct 31
-    '2025-10-7': 92000,  // Nov 7
-    '2025-10-21': 86000, // Nov 21
-    '2025-10-26': 91500, // Nov 26
-    '2025-10-27': 91500, // Nov 27
+    '2025-5-20': 105000,  // Jun 20 - start
+    '2025-5-21': 106000,
+    '2025-6-4': 109000,   // Jul 4
+    '2025-6-18': 119000,  // Jul 18
+    '2025-7-1': 116000,   // Aug 1
+    '2025-7-11': 118000,  // Aug 11
+    '2025-7-15': 118500,  // Aug 15
+    '2025-7-29': 110000,  // Aug 29
+    '2025-8-2': 108000,   // Sep 2
+    '2025-8-19': 117000,  // Sep 19
+    '2025-9-6': 125000,   // Oct 6
+    '2025-9-7': 120000,   // Oct 7
+    '2025-9-10': 106000,  // Oct 10
+    '2025-9-11': 105000,  // Oct 11
+    '2025-9-17': 106000,  // Oct 17
+    '2025-9-30': 108000,  // Oct 30
+    '2025-9-31': 110000,  // Oct 31
+    '2025-10-7': 104000,  // Nov 7
+    '2025-10-21': 86000,  // Nov 21
+    '2025-10-26': 91500,  // Nov 26
+    '2025-10-27': 91500,  // Nov 27
   };
 
   try {
@@ -414,8 +415,8 @@ export default function App() {
     return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
   };
   
-  // Get starting BTC price (June 20, 2025)
-  const startBtcPrice = btcHistory['2025-5-20'] || btcHistory[getDateKey('Jun 20')] || 65000;
+  // Get starting BTC price (June 20, 2025) - from PDF: first buy was at $100,900
+  const startBtcPrice = btcHistory['2025-5-20'] || btcHistory[getDateKey('Jun 20')] || 105000;
   const btcBought = totalInvested / startBtcPrice; // How much BTC you could have bought
   
   // Add BTC comparison to each history point
