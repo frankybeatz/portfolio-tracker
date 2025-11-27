@@ -146,6 +146,61 @@ function formatDateShort(dateStr) {
   return `${months[date.getMonth()]} ${date.getDate()}`;
 }
 
+// Calculate current positions from trade history
+function calculatePositionsFromTrades(trades, totalInvested) {
+  if (!trades || trades.length === 0) return [];
+  
+  const holdings = {}; // { asset: { amount, totalCost, trades } }
+  let usdcBalance = totalInvested; // Start with total invested
+  
+  trades.forEach(trade => {
+    const asset = trade.asset;
+    const amount = parseFloat(trade.amount) || 0;
+    const price = parseFloat(trade.price?.replace(/[$,]/g, '')) || 0;
+    
+    if (!holdings[asset]) {
+      holdings[asset] = { amount: 0, totalCost: 0, buyCount: 0 };
+    }
+    
+    if (trade.action === 'BUY') {
+      holdings[asset].amount += amount;
+      holdings[asset].totalCost += amount * price;
+      holdings[asset].buyCount += 1;
+      usdcBalance -= amount * price; // Spent cash to buy
+    } else if (trade.action === 'SELL') {
+      // Reduce amount, adjust cost proportionally
+      const sellRatio = Math.min(amount / holdings[asset].amount, 1);
+      holdings[asset].totalCost -= holdings[asset].totalCost * sellRatio;
+      holdings[asset].amount -= amount;
+      usdcBalance += amount * price; // Received cash from sale
+    }
+  });
+  
+  // Convert to positions array
+  const positions = [];
+  Object.keys(holdings).forEach(asset => {
+    const h = holdings[asset];
+    if (h.amount > 0.0001) { // Filter out dust
+      positions.push({
+        asset,
+        amount: h.amount,
+        costBasis: h.amount > 0 ? h.totalCost / h.amount : 0, // Average cost
+      });
+    }
+  });
+  
+  // Add USDC if there's any balance
+  if (usdcBalance > 1) {
+    positions.push({
+      asset: 'USDC',
+      amount: Math.round(usdcBalance),
+      costBasis: 1,
+    });
+  }
+  
+  return positions;
+}
+
 export default function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -186,27 +241,37 @@ export default function App() {
         });
         setConfig(configObj);
 
-        // Parse positions
-        setPositions(positionsData.map(row => ({
+        // Parse trades first (needed for position calculation)
+        const parsedTrades = tradesData.map(row => ({
+          date: row.date,
+          action: row.action,
           asset: row.asset,
-          amount: parseFloat(row.amount) || 0,
-          costBasis: parseFloat(row.cost_basis) || 0,
-        })));
+          amount: row.amount,
+          price: row.price,
+        }));
+        setTrades(parsedTrades);
+
+        // Calculate positions from trades (auto-magic!)
+        // Falls back to Positions sheet if no trades
+        const totalInvestedNum = parseFloat(configObj.total_invested) || 50069;
+        const calculatedPositions = calculatePositionsFromTrades(parsedTrades, totalInvestedNum);
+        
+        // Use calculated positions if we have trades, otherwise fall back to sheet
+        if (calculatedPositions.length > 0) {
+          setPositions(calculatedPositions);
+        } else {
+          setPositions(positionsData.map(row => ({
+            asset: row.asset,
+            amount: parseFloat(row.amount) || 0,
+            costBasis: parseFloat(row.cost_basis) || 0,
+          })));
+        }
 
         // Parse history
         setHistory(historyData.map(row => ({
           date: row.date,
           value: parseFloat(row.value) || 0,
           label: row.label || '',
-        })));
-
-        // Parse trades
-        setTrades(tradesData.map(row => ({
-          date: row.date,
-          action: row.action,
-          asset: row.asset,
-          amount: row.amount,
-          price: row.price,
         })));
 
         // Parse targets (only asset and target needed - current price is live)
