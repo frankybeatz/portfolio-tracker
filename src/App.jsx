@@ -273,16 +273,31 @@ function calculateHistoryFromTrades(trades, currentPrices, totalInvested) {
   return historyPoints;
 }
 
-// Parse trade date (handles formats like "Nov 21", "Oct 30", etc.)
+// Parse trade date (handles formats like "Nov 21", "Oct 30", "April 15, 2025", etc.)
 function parseTradeDate(dateStr) {
   if (!dateStr) return new Date();
-  const months = { Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5, Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11 };
-  const parts = dateStr.split(' ');
-  if (parts.length === 2) {
-    const month = months[parts[0]];
-    const day = parseInt(parts[1]);
-    return new Date(2025, month, day);
+  
+  // Short month format: "Nov 21", "Apr 15"
+  const shortMonths = { Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5, Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11 };
+  
+  // Full month format: "April 15, 2025", "September 8, 2025"
+  const fullMonths = { 
+    January: 0, February: 1, March: 2, April: 3, May: 4, June: 5, 
+    July: 6, August: 7, September: 8, October: 9, November: 10, December: 11 
+  };
+  
+  // Try "Nov 21" format
+  const shortMatch = dateStr.match(/^([A-Za-z]{3})\s+(\d+)/);
+  if (shortMatch && shortMonths[shortMatch[1]] !== undefined) {
+    return new Date(2025, shortMonths[shortMatch[1]], parseInt(shortMatch[2]));
   }
+  
+  // Try "April 15, 2025" or "April 15" format
+  const fullMatch = dateStr.match(/^([A-Za-z]+)\s+(\d+)/);
+  if (fullMatch && fullMonths[fullMatch[1]] !== undefined) {
+    return new Date(2025, fullMonths[fullMatch[1]], parseInt(fullMatch[2]));
+  }
+  
   return new Date(dateStr);
 }
 
@@ -747,10 +762,14 @@ export default function App() {
   const clientName = config.client_name || 'Portfolio';
   const startDate = config.start_date || '';
 
-  // Goal tracker - default goal is 2x initial investment
-  const portfolioGoal = parseFloat(config.goal) || (totalInvested * 2);
-  const goalProgress = portfolioGoal > 0 ? Math.min((totalValue / portfolioGoal) * 100, 100) : 0;
+  // Goal tracker - goal is 1 whole BTC
+  const btcPrice = prices.BTC || 91500;
+  const portfolioGoal = parseFloat(config.goal) || btcPrice;
+  const goalProgress = portfolioGoal > 0 ? (totalValue / portfolioGoal) * 100 : 0;
+  const goalExceeded = totalValue >= portfolioGoal;
   const amountToGoal = Math.max(portfolioGoal - totalValue, 0);
+  const amountOverGoal = Math.max(totalValue - portfolioGoal, 0);
+  const goalLabel = config.goal ? `$${portfolioGoal.toLocaleString()}` : '1 BTC';
 
   // Max drawdown calculation
   const drawdownData = calculateMaxDrawdown();
@@ -947,8 +966,8 @@ export default function App() {
           </div>
         </div>
 
-        {/* Main Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-4 mb-8">
+        {/* Main Stats - Row 1 */}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-4 mb-3">
           <div className="bg-slate-800/50 backdrop-blur rounded-2xl p-4 md:p-6 border border-slate-700/50">
             <div className="text-slate-400 text-xs md:text-sm mb-1">Portfolio Value</div>
             <div className="text-xl md:text-3xl font-bold text-white">
@@ -987,13 +1006,53 @@ export default function App() {
           </div>
 
           <div className="bg-slate-800/50 backdrop-blur rounded-2xl p-4 md:p-6 border border-slate-700/50">
-            <div className="text-slate-400 text-xs md:text-sm mb-1">BTC Price</div>
-            <div className="text-xl md:text-3xl font-bold text-orange-400">
-              ${Math.round(animatedBtcPrice).toLocaleString()}
+            <div className="text-slate-400 text-xs md:text-sm mb-1">Cash Available</div>
+            <div className="text-xl md:text-3xl font-bold text-emerald-400">
+              ${(positionsWithValue.find(p => p.asset === 'USDC')?.value || 0).toLocaleString('en-US', {maximumFractionDigits: 0})}
             </div>
-            <div className="flex items-center gap-1 mt-2">
-              <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
-              <span className="text-slate-500 text-xs md:text-sm">Live</span>
+            <div className="text-slate-500 text-xs md:text-sm mt-2">Ready to deploy</div>
+          </div>
+        </div>
+
+        {/* Main Stats - Row 2: Live Prices */}
+        <div className="grid grid-cols-3 gap-3 md:gap-4 mb-8">
+          <div className="bg-slate-800/50 backdrop-blur rounded-xl p-3 md:p-4 border border-slate-700/50">
+            <div className="flex items-center gap-2">
+              <img src={getAssetLogo('BTC')} alt="BTC" className="w-6 h-6" />
+              <div>
+                <div className="text-slate-400 text-xs">Bitcoin</div>
+                <div className="text-lg md:text-xl font-bold text-white">${(prices.BTC || 91500).toLocaleString()}</div>
+              </div>
+              <div className={`ml-auto text-sm font-medium ${prices.BTC_24h >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                {prices.BTC_24h >= 0 ? '+' : ''}{prices.BTC_24h?.toFixed(1) || '0.0'}%
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-slate-800/50 backdrop-blur rounded-xl p-3 md:p-4 border border-slate-700/50">
+            <div className="flex items-center gap-2">
+              <img src={getAssetLogo('ETH')} alt="ETH" className="w-6 h-6" />
+              <div>
+                <div className="text-slate-400 text-xs">Ethereum</div>
+                <div className="text-lg md:text-xl font-bold text-white">${(prices.ETH || 3050).toLocaleString()}</div>
+              </div>
+              <div className={`ml-auto text-sm font-medium ${prices.ETH_24h >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                {prices.ETH_24h >= 0 ? '+' : ''}{prices.ETH_24h?.toFixed(1) || '0.0'}%
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-slate-800/50 backdrop-blur rounded-xl p-3 md:p-4 border border-slate-700/50">
+            <div className="flex items-center gap-2">
+              <img src={getAssetLogo('SOL')} alt="SOL" className="w-6 h-6" />
+              <div>
+                <div className="text-slate-400 text-xs">Solana</div>
+                <div className="text-lg md:text-xl font-bold text-white">${(prices.SOL || 143).toLocaleString()}</div>
+              </div>
+              <div className={`ml-auto text-sm font-medium ${prices.SOL_24h >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                {prices.SOL_24h >= 0 ? '+' : ''}{prices.SOL_24h?.toFixed(1) || '0.0'}%
+              </div>
+              <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse ml-1"></div>
             </div>
           </div>
         </div>
@@ -1289,158 +1348,6 @@ export default function App() {
           </div>
         </div>
 
-        {/* Price Targets */}
-        {targets.length > 0 && (
-          <div className="bg-gradient-to-r from-emerald-900/30 to-teal-900/30 backdrop-blur rounded-2xl p-4 md:p-6 border border-emerald-700/30 mb-6">
-            <div className="flex items-center gap-2 mb-4">
-              <span className="text-xl">🎯</span>
-              <h2 className="text-lg font-semibold">Price Targets</h2>
-              <span className="text-xs bg-emerald-500/20 text-emerald-400 px-2 py-1 rounded-full">6-12 Month</span>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {targets.map((t) => {
-                const currentPrice = getAssetPrice(t.asset);
-                const upside = currentPrice > 0 ? ((t.target - currentPrice) / currentPrice * 100).toFixed(0) : 0;
-                return (
-                  <div key={t.asset} className="bg-slate-800/50 rounded-xl p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      {getAssetLogo(t.asset) && (
-                        <img src={getAssetLogo(t.asset)} alt={t.asset} className="w-6 h-6" />
-                      )}
-                      <span className="text-slate-400 text-sm font-medium">{t.asset}</span>
-                    </div>
-                    <div className="flex items-baseline gap-2">
-                      <span className="text-xl md:text-2xl font-bold">${t.target.toLocaleString()}</span>
-                      <span className="text-emerald-400 text-sm">+{upside}%</span>
-                    </div>
-                    <div className="flex items-center gap-1 text-slate-500 text-sm mt-1">
-                      <span>from ${currentPrice.toLocaleString()}</span>
-                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse ml-1"></div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Goal Tracker & Max Drawdown Row */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-          {/* Goal Tracker */}
-          <div className="bg-gradient-to-r from-violet-900/30 to-purple-900/30 backdrop-blur rounded-2xl p-4 md:p-6 border border-violet-700/30">
-            <div className="flex items-center gap-2 mb-4">
-              <span className="text-xl">🎯</span>
-              <h2 className="text-lg font-semibold">Goal Tracker</h2>
-              <span className="text-xs bg-violet-500/20 text-violet-400 px-2 py-1 rounded-full">
-                ${portfolioGoal.toLocaleString()}
-              </span>
-            </div>
-            <div className="mb-4">
-              <div className="flex justify-between text-sm mb-2">
-                <span className="text-slate-400">Progress</span>
-                <span className="text-white font-medium">{goalProgress.toFixed(1)}%</span>
-              </div>
-              <div className="h-4 bg-slate-700 rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-gradient-to-r from-violet-500 to-purple-500 rounded-full transition-all duration-1000"
-                  style={{ width: `${goalProgress}%` }}
-                ></div>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-slate-800/50 rounded-xl p-3">
-                <div className="text-slate-400 text-xs mb-1">Current</div>
-                <div className="text-lg font-bold text-white">${totalValue.toLocaleString('en-US', {maximumFractionDigits: 0})}</div>
-              </div>
-              <div className="bg-slate-800/50 rounded-xl p-3">
-                <div className="text-slate-400 text-xs mb-1">To Goal</div>
-                <div className="text-lg font-bold text-violet-400">${amountToGoal.toLocaleString('en-US', {maximumFractionDigits: 0})}</div>
-              </div>
-            </div>
-          </div>
-
-          {/* Max Drawdown */}
-          <div className="bg-gradient-to-r from-rose-900/30 to-red-900/30 backdrop-blur rounded-2xl p-4 md:p-6 border border-rose-700/30">
-            <div className="flex items-center gap-2 mb-4">
-              <span className="text-xl">📉</span>
-              <h2 className="text-lg font-semibold">Max Drawdown</h2>
-            </div>
-            <div className="text-center mb-4">
-              <div className="text-4xl font-bold text-red-400">
-                -{drawdownData.maxDrawdown.toFixed(1)}%
-              </div>
-              <div className="text-slate-400 text-sm mt-1">Worst peak-to-trough</div>
-            </div>
-            {drawdownData.peakDate && (
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-slate-800/50 rounded-xl p-3">
-                  <div className="text-slate-400 text-xs mb-1">Peak</div>
-                  <div className="text-sm font-medium text-white">{drawdownData.peakDate}</div>
-                </div>
-                <div className="bg-slate-800/50 rounded-xl p-3">
-                  <div className="text-slate-400 text-xs mb-1">Trough</div>
-                  <div className="text-sm font-medium text-white">{drawdownData.troughDate}</div>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Monthly Returns Heatmap */}
-        {monthlyReturns.length > 0 && (
-          <div className="bg-slate-800/50 backdrop-blur rounded-2xl p-4 md:p-6 border border-slate-700/50 mb-6">
-            <div className="flex items-center gap-2 mb-4">
-              <span className="text-xl">📅</span>
-              <h2 className="text-lg font-semibold">Monthly Returns</h2>
-            </div>
-            <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-12 gap-2">
-              {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map((month, i) => {
-                const monthData = monthlyReturns.find(m => m.month === i);
-                const returnVal = monthData?.return || null;
-                return (
-                  <div 
-                    key={month}
-                    className={`rounded-lg p-3 text-center ${
-                      returnVal === null ? 'bg-slate-700/30' :
-                      returnVal >= 10 ? 'bg-emerald-500/40' :
-                      returnVal >= 5 ? 'bg-emerald-500/30' :
-                      returnVal >= 0 ? 'bg-emerald-500/20' :
-                      returnVal >= -5 ? 'bg-red-500/20' :
-                      returnVal >= -10 ? 'bg-red-500/30' : 'bg-red-500/40'
-                    }`}
-                  >
-                    <div className="text-xs text-slate-400 mb-1">{month}</div>
-                    <div className={`text-sm font-bold ${
-                      returnVal === null ? 'text-slate-500' :
-                      returnVal >= 0 ? 'text-emerald-400' : 'text-red-400'
-                    }`}>
-                      {returnVal !== null ? `${returnVal >= 0 ? '+' : ''}${returnVal.toFixed(1)}%` : '-'}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            <div className="flex items-center justify-center gap-4 mt-4 text-xs text-slate-500">
-              <div className="flex items-center gap-1">
-                <div className="w-3 h-3 rounded bg-red-500/40"></div>
-                <span>&lt;-10%</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <div className="w-3 h-3 rounded bg-red-500/20"></div>
-                <span>-10% to 0%</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <div className="w-3 h-3 rounded bg-emerald-500/20"></div>
-                <span>0% to +5%</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <div className="w-3 h-3 rounded bg-emerald-500/40"></div>
-                <span>&gt;+10%</span>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Trade Analytics */}
         {tradeAnalytics && tradeAnalytics.completedRoundTrips > 0 && (
           <div className="bg-gradient-to-r from-amber-900/30 to-orange-900/30 backdrop-blur rounded-2xl p-4 md:p-6 border border-amber-700/30 mb-6">
@@ -1548,6 +1455,169 @@ export default function App() {
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Price Targets */}
+        {targets.length > 0 && (
+          <div className="bg-gradient-to-r from-emerald-900/30 to-teal-900/30 backdrop-blur rounded-2xl p-4 md:p-6 border border-emerald-700/30 mb-6">
+            <div className="flex items-center gap-2 mb-4">
+              <span className="text-xl">🎯</span>
+              <h2 className="text-lg font-semibold">Price Targets</h2>
+              <span className="text-xs bg-emerald-500/20 text-emerald-400 px-2 py-1 rounded-full">6-12 Month</span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {targets.map((t) => {
+                const currentPrice = getAssetPrice(t.asset);
+                const upside = currentPrice > 0 ? ((t.target - currentPrice) / currentPrice * 100).toFixed(0) : 0;
+                return (
+                  <div key={t.asset} className="bg-slate-800/50 rounded-xl p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      {getAssetLogo(t.asset) && (
+                        <img src={getAssetLogo(t.asset)} alt={t.asset} className="w-6 h-6" />
+                      )}
+                      <span className="text-slate-400 text-sm font-medium">{t.asset}</span>
+                    </div>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-xl md:text-2xl font-bold">${t.target.toLocaleString()}</span>
+                      <span className="text-emerald-400 text-sm">+{upside}%</span>
+                    </div>
+                    <div className="flex items-center gap-1 text-slate-500 text-sm mt-1">
+                      <span>from ${currentPrice.toLocaleString()}</span>
+                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse ml-1"></div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Goal Tracker & Max Drawdown Row */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          {/* Goal Tracker */}
+          <div className={`bg-gradient-to-r ${goalExceeded ? 'from-emerald-900/30 to-teal-900/30 border-emerald-700/30' : 'from-orange-900/30 to-amber-900/30 border-orange-700/30'} backdrop-blur rounded-2xl p-4 md:p-6 border`}>
+            <div className="flex items-center gap-2 mb-4">
+              <span className="text-xl">{goalExceeded ? '🏆' : '🎯'}</span>
+              <h2 className="text-lg font-semibold">Goal Tracker</h2>
+              <span className={`text-xs px-2 py-1 rounded-full flex items-center gap-1 ${goalExceeded ? 'bg-emerald-500/20 text-emerald-400' : 'bg-orange-500/20 text-orange-400'}`}>
+                {!config.goal && <img src={getAssetLogo('BTC')} alt="BTC" className="w-3 h-3" />}
+                {goalLabel}
+              </span>
+              {goalExceeded && (
+                <span className="text-xs bg-emerald-500/30 text-emerald-300 px-2 py-1 rounded-full ml-auto animate-pulse">
+                  🎉 Goal Reached!
+                </span>
+              )}
+            </div>
+            <div className="mb-4">
+              <div className="flex justify-between text-sm mb-2">
+                <span className="text-slate-400">Progress to 1 BTC</span>
+                <span className={`font-medium ${goalExceeded ? 'text-emerald-400' : 'text-white'}`}>{Math.min(goalProgress, 100).toFixed(1)}%</span>
+              </div>
+              <div className="h-4 bg-slate-700 rounded-full overflow-hidden">
+                <div 
+                  className={`h-full rounded-full transition-all duration-1000 ${goalExceeded ? 'bg-gradient-to-r from-emerald-500 to-teal-500' : 'bg-gradient-to-r from-orange-500 to-amber-500'}`}
+                  style={{ width: `${Math.min(goalProgress, 100)}%` }}
+                ></div>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-slate-800/50 rounded-xl p-3">
+                <div className="text-slate-400 text-xs mb-1">Portfolio</div>
+                <div className="text-lg font-bold text-white">${totalValue.toLocaleString('en-US', {maximumFractionDigits: 0})}</div>
+              </div>
+              <div className="bg-slate-800/50 rounded-xl p-3">
+                <div className="text-slate-400 text-xs mb-1">{goalExceeded ? 'Over 1 BTC' : 'To 1 BTC'}</div>
+                <div className={`text-lg font-bold ${goalExceeded ? 'text-emerald-400' : 'text-orange-400'}`}>
+                  {goalExceeded ? '+' : ''}${(goalExceeded ? amountOverGoal : amountToGoal).toLocaleString('en-US', {maximumFractionDigits: 0})}
+                </div>
+              </div>
+            </div>
+            <div className="text-center text-xs text-slate-500 mt-3">
+              1 BTC = ${btcPrice.toLocaleString()} (live)
+            </div>
+          </div>
+
+          {/* Max Drawdown */}
+          <div className="bg-gradient-to-r from-rose-900/30 to-red-900/30 backdrop-blur rounded-2xl p-4 md:p-6 border border-rose-700/30">
+            <div className="flex items-center gap-2 mb-4">
+              <span className="text-xl">📉</span>
+              <h2 className="text-lg font-semibold">Max Drawdown</h2>
+            </div>
+            <div className="text-center mb-4">
+              <div className="text-4xl font-bold text-red-400">
+                -{drawdownData.maxDrawdown.toFixed(1)}%
+              </div>
+              <div className="text-slate-400 text-sm mt-1">Worst peak-to-trough</div>
+            </div>
+            {drawdownData.peakDate && (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-slate-800/50 rounded-xl p-3">
+                  <div className="text-slate-400 text-xs mb-1">Peak</div>
+                  <div className="text-sm font-medium text-white">{drawdownData.peakDate}</div>
+                </div>
+                <div className="bg-slate-800/50 rounded-xl p-3">
+                  <div className="text-slate-400 text-xs mb-1">Trough</div>
+                  <div className="text-sm font-medium text-white">{drawdownData.troughDate}</div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Monthly Returns Heatmap */}
+        {monthlyReturns.length > 0 && (
+          <div className="bg-slate-800/50 backdrop-blur rounded-2xl p-4 md:p-6 border border-slate-700/50 mb-6">
+            <div className="flex items-center gap-2 mb-4">
+              <span className="text-xl">📅</span>
+              <h2 className="text-lg font-semibold">Monthly Returns</h2>
+            </div>
+            <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-12 gap-2">
+              {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map((month, i) => {
+                const monthData = monthlyReturns.find(m => m.month === i);
+                const returnVal = monthData !== undefined ? monthData.return : null;
+                return (
+                  <div 
+                    key={month}
+                    className={`rounded-lg p-3 text-center ${
+                      returnVal === null ? 'bg-slate-700/30' :
+                      returnVal >= 10 ? 'bg-emerald-500/40' :
+                      returnVal >= 5 ? 'bg-emerald-500/30' :
+                      returnVal >= 0 ? 'bg-emerald-500/20' :
+                      returnVal >= -5 ? 'bg-red-500/20' :
+                      returnVal >= -10 ? 'bg-red-500/30' : 'bg-red-500/40'
+                    }`}
+                  >
+                    <div className="text-xs text-slate-400 mb-1">{month}</div>
+                    <div className={`text-sm font-bold ${
+                      returnVal === null ? 'text-slate-500' :
+                      returnVal >= 0 ? 'text-emerald-400' : 'text-red-400'
+                    }`}>
+                      {returnVal !== null ? `${returnVal >= 0 ? '+' : ''}${returnVal.toFixed(1)}%` : '-'}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="flex items-center justify-center gap-4 mt-4 text-xs text-slate-500">
+              <div className="flex items-center gap-1">
+                <div className="w-3 h-3 rounded bg-red-500/40"></div>
+                <span>&lt;-10%</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-3 h-3 rounded bg-red-500/20"></div>
+                <span>-10% to 0%</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-3 h-3 rounded bg-emerald-500/20"></div>
+                <span>0% to +5%</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-3 h-3 rounded bg-emerald-500/40"></div>
+                <span>&gt;+10%</span>
+              </div>
             </div>
           </div>
         )}
