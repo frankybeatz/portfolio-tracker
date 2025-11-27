@@ -731,22 +731,25 @@ export default function App() {
     history.forEach((h, i) => {
       const date = parseTradeDate(h.date);
       const monthKey = `${date.getFullYear()}-${date.getMonth()}`;
+      const deposit = parseFloat(h.deposit) || 0;
       
       if (!monthlyData[monthKey]) {
         monthlyData[monthKey] = { 
           year: date.getFullYear(), 
           month: date.getMonth(), 
           startValue: h.value,
-          endValue: h.value 
+          endValue: h.value,
+          deposits: deposit
         };
       } else {
         monthlyData[monthKey].endValue = h.value;
+        monthlyData[monthKey].deposits += deposit;
       }
     });
     
     return Object.values(monthlyData).map(m => ({
       ...m,
-      return: ((m.endValue - m.startValue) / m.startValue) * 100
+      return: ((m.endValue - m.startValue - m.deposits) / m.startValue) * 100
     }));
   };
 
@@ -823,7 +826,7 @@ export default function App() {
   const btcBought = totalInvested / startBtcPrice; // How much BTC you could have bought
   
   // Add BTC comparison to each history point
-  const displayHistory = baseHistory.map(point => {
+  const historyWithBtc = baseHistory.map(point => {
     const dateKey = getDateKey(point.date);
     // Try to find historical price, fall back to current price
     const btcPriceOnDate = btcHistory[dateKey] || (prices.BTC || 91500);
@@ -834,6 +837,22 @@ export default function App() {
       btcHold: btcHoldValue,
     };
   });
+  
+  // Auto-add today's live value if not already present
+  const today = new Date();
+  const todayStr = today.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const lastHistoryDate = historyWithBtc.length > 0 ? historyWithBtc[historyWithBtc.length - 1].date : '';
+  
+  const displayHistory = [...historyWithBtc];
+  if (totalValue > 0 && lastHistoryDate !== todayStr) {
+    const btcHoldToday = Math.round(btcBought * (prices.BTC || 91500));
+    displayHistory.push({
+      date: todayStr,
+      value: Math.round(totalValue),
+      btcHold: btcHoldToday,
+      label: 'Live'
+    });
+  }
 
   const allocation = positionsWithValue
     .filter(p => p.value > 0)
