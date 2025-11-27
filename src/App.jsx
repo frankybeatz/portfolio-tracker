@@ -44,7 +44,7 @@ function Confetti({ trigger }) {
   useEffect(() => {
     if (!trigger) return;
     
-    const colors = ['#10b981', '#F7931A', '#627EEA', '#00FFA3', '#FFD700', '#FF6B6B'];
+    const colors = ['#10b981', '#FF9500', '#A855F7', '#06B6D4', '#00D4AA', '#FF6B9D'];
     const newParticles = Array.from({ length: 50 }, (_, i) => ({
       id: i,
       x: Math.random() * 100,
@@ -461,6 +461,8 @@ export default function App() {
   const [btcHistory, setBtcHistory] = useState({});
   const [lastUpdate, setLastUpdate] = useState(new Date());
   const [showConfetti, setShowConfetti] = useState(false);
+  const [fearGreed, setFearGreed] = useState(null);
+  const [news, setNews] = useState([]);
   const [allTimeHigh, setAllTimeHigh] = useState(() => {
     // Get stored ATH from localStorage
     if (typeof window !== 'undefined') {
@@ -468,6 +470,39 @@ export default function App() {
     }
     return 0;
   });
+
+  // Load Fear & Greed Index
+  useEffect(() => {
+    async function loadFearGreed() {
+      try {
+        const res = await fetch('https://api.alternative.me/fng/?limit=1');
+        const data = await res.json();
+        if (data.data && data.data[0]) {
+          setFearGreed(data.data[0]);
+        }
+      } catch (err) {
+        console.log('Failed to load Fear & Greed:', err);
+      }
+    }
+    loadFearGreed();
+  }, []);
+
+  // Load Crypto News
+  useEffect(() => {
+    async function loadNews() {
+      try {
+        // Using CryptoPanic public RSS converted to JSON via rss2json
+        const res = await fetch('https://api.rss2json.com/v1/api.json?rss_url=https://cryptopanic.com/news/rss/');
+        const data = await res.json();
+        if (data.items) {
+          setNews(data.items.slice(0, 5)); // Get top 5 news
+        }
+      } catch (err) {
+        console.log('Failed to load news:', err);
+      }
+    }
+    loadNews();
+  }, []);
 
   // Load all data
   useEffect(() => {
@@ -696,7 +731,7 @@ export default function App() {
     .map(p => ({
       name: p.asset,
       value: p.value,
-      color: p.asset === 'BTC' ? '#F7931A' : p.asset === 'USDC' ? '#2775CA' : p.asset === 'ETH' ? '#627EEA' : p.asset === 'SOL' ? '#00FFA3' : '#8884d8',
+      color: p.asset === 'BTC' ? '#FF9500' : p.asset === 'USDC' ? '#00D4AA' : p.asset === 'ETH' ? '#A855F7' : p.asset === 'SOL' ? '#06B6D4' : p.asset === 'XRP' ? '#FF6B9D' : '#F472B6',
     }));
 
   if (loading) {
@@ -972,13 +1007,15 @@ export default function App() {
                   <div className="flex items-center gap-3">
                     <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
                       pos.asset === 'BTC' ? 'bg-orange-500/20' : 
-                      pos.asset === 'ETH' ? 'bg-blue-500/20' : 
-                      pos.asset === 'SOL' ? 'bg-emerald-500/20' : 'bg-slate-500/20'
+                      pos.asset === 'ETH' ? 'bg-purple-500/20' : 
+                      pos.asset === 'SOL' ? 'bg-cyan-500/20' : 
+                      pos.asset === 'USDC' ? 'bg-emerald-500/20' : 'bg-pink-500/20'
                     }`}>
                       <span className={`font-bold text-sm ${
                         pos.asset === 'BTC' ? 'text-orange-400' : 
-                        pos.asset === 'ETH' ? 'text-blue-400' : 
-                        pos.asset === 'SOL' ? 'text-emerald-400' : 'text-slate-400'
+                        pos.asset === 'ETH' ? 'text-purple-400' : 
+                        pos.asset === 'SOL' ? 'text-cyan-400' : 
+                        pos.asset === 'USDC' ? 'text-emerald-400' : 'text-pink-400'
                       }`}>
                         {pos.asset === 'BTC' ? '₿' : pos.asset === 'USDC' ? '$' : pos.asset.charAt(0)}
                       </span>
@@ -1168,6 +1205,78 @@ export default function App() {
             </div>
           </div>
         )}
+
+        {/* Market Sentiment & News Row */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          {/* Fear & Greed Index */}
+          <div className="bg-slate-800/50 backdrop-blur rounded-2xl p-4 md:p-6 border border-slate-700/50">
+            <div className="flex items-center gap-2 mb-4">
+              <span className="text-xl">😱</span>
+              <h2 className="text-lg font-semibold">Fear & Greed</h2>
+            </div>
+            {fearGreed ? (
+              <div className="text-center">
+                {/* Gauge */}
+                <div className="relative w-32 h-16 mx-auto mb-3 overflow-hidden">
+                  <div className="absolute inset-0 rounded-t-full" style={{
+                    background: 'linear-gradient(90deg, #ef4444 0%, #f97316 25%, #eab308 50%, #22c55e 75%, #10b981 100%)'
+                  }}></div>
+                  <div className="absolute bottom-0 left-1/2 w-1 h-16 bg-white shadow-lg origin-bottom"
+                    style={{
+                      transform: `translateX(-50%) rotate(${(fearGreed.value - 50) * 1.8}deg)`
+                    }}
+                  ></div>
+                  <div className="absolute bottom-0 left-1/2 w-3 h-3 bg-white rounded-full -translate-x-1/2 translate-y-1/2"></div>
+                </div>
+                <div className="text-3xl font-bold mb-1">{fearGreed.value}</div>
+                <div className={`text-sm font-medium ${
+                  fearGreed.value <= 25 ? 'text-red-400' :
+                  fearGreed.value <= 45 ? 'text-orange-400' :
+                  fearGreed.value <= 55 ? 'text-yellow-400' :
+                  fearGreed.value <= 75 ? 'text-green-400' : 'text-emerald-400'
+                }`}>
+                  {fearGreed.value_classification}
+                </div>
+                <div className="text-slate-500 text-xs mt-2">Updated daily</div>
+              </div>
+            ) : (
+              <div className="text-slate-500 text-center py-4">Loading...</div>
+            )}
+          </div>
+
+          {/* Crypto News */}
+          <div className="md:col-span-2 bg-slate-800/50 backdrop-blur rounded-2xl p-4 md:p-6 border border-slate-700/50">
+            <div className="flex items-center gap-2 mb-4">
+              <span className="text-xl">📰</span>
+              <h2 className="text-lg font-semibold">Latest News</h2>
+              <span className="text-xs bg-slate-700 text-slate-400 px-2 py-1 rounded-full ml-auto">CryptoPanic</span>
+            </div>
+            {news.length > 0 ? (
+              <div className="space-y-3 max-h-[250px] overflow-y-auto pr-2">
+                {news.map((item, i) => (
+                  <a 
+                    key={i} 
+                    href={item.link} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="block p-3 bg-slate-700/30 rounded-xl hover:bg-slate-700/50 transition-colors"
+                  >
+                    <div className="text-sm font-medium text-white line-clamp-2 mb-1">
+                      {item.title}
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-slate-500">
+                      <span>{new Date(item.pubDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                      <span>•</span>
+                      <span className="text-slate-400">{item.author || 'Crypto News'}</span>
+                    </div>
+                  </a>
+                ))}
+              </div>
+            ) : (
+              <div className="text-slate-500 text-center py-8">Loading news...</div>
+            )}
+          </div>
+        </div>
 
         {/* Carla's Portfolio - Only shown for Chloé */}
         {CARLA_CONFIG.enabled && (
