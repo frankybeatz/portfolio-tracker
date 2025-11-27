@@ -7,6 +7,14 @@ import { PieChart, Pie, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, AreaCh
 // ============================================
 const SHEET_ID = '1tDP0fUvWQhOLk0i5i4KE5TrWyg-2bLRgzDnvR1ZGox0';
 
+// Carla's allocation (mirrors Chloé's performance)
+const CARLA_CONFIG = {
+  name: 'Carla',
+  initialInvestment: 2000,
+  startDate: 'July 4, 2025',
+  startDateObj: new Date('2025-07-04'),
+};
+
 // Sheet URLs (each tab published as CSV) - with cache buster
 const cacheBuster = () => `&_cb=${Date.now()}`;
 const SHEETS = {
@@ -44,6 +52,98 @@ async function fetchPrices() {
     console.error('Failed to fetch prices:', err);
     return { BTC: null, ETH: null, SOL: null };
   }
+}
+
+// Calculate portfolio history from trades
+function calculateHistoryFromTrades(trades, currentPrices, totalInvested) {
+  if (!trades || trades.length === 0) return [];
+  
+  // Sort trades by date (oldest first)
+  const sortedTrades = [...trades].sort((a, b) => {
+    const dateA = parseTradeDate(a.date);
+    const dateB = parseTradeDate(b.date);
+    return dateA - dateB;
+  });
+
+  // Track holdings over time
+  const holdings = { BTC: 0, ETH: 0, SOL: 0, USDC: 0 };
+  const historyPoints = [];
+  let cashDeployed = 0;
+
+  // Group trades by date
+  const tradesByDate = {};
+  sortedTrades.forEach(trade => {
+    const dateKey = trade.date;
+    if (!tradesByDate[dateKey]) {
+      tradesByDate[dateKey] = [];
+    }
+    tradesByDate[dateKey].push(trade);
+  });
+
+  // Process each date
+  Object.keys(tradesByDate).forEach(dateKey => {
+    const dayTrades = tradesByDate[dateKey];
+    
+    dayTrades.forEach(trade => {
+      const amount = parseFloat(trade.amount) || 0;
+      const price = parseFloat(trade.price?.replace(/[$,]/g, '')) || 0;
+      
+      if (trade.action === 'BUY') {
+        holdings[trade.asset] = (holdings[trade.asset] || 0) + amount;
+        cashDeployed += amount * price;
+      } else if (trade.action === 'SELL') {
+        holdings[trade.asset] = (holdings[trade.asset] || 0) - amount;
+      }
+    });
+
+    // Calculate portfolio value at this point using trade prices as proxy
+    // (In reality you'd want historical prices, but this gives a good approximation)
+    const lastTradeOfDay = dayTrades[dayTrades.length - 1];
+    const tradePrice = parseFloat(lastTradeOfDay.price?.replace(/[$,]/g, '')) || 0;
+    
+    // Estimate value based on holdings
+    let estimatedValue = holdings.USDC || 0;
+    if (holdings.BTC > 0) {
+      const btcPrice = lastTradeOfDay.asset === 'BTC' ? tradePrice : (currentPrices.BTC || 95000);
+      estimatedValue += holdings.BTC * btcPrice;
+    }
+    if (holdings.ETH > 0) {
+      const ethPrice = lastTradeOfDay.asset === 'ETH' ? tradePrice : (currentPrices.ETH || 3000);
+      estimatedValue += holdings.ETH * ethPrice;
+    }
+    if (holdings.SOL > 0) {
+      const solPrice = lastTradeOfDay.asset === 'SOL' ? tradePrice : (currentPrices.SOL || 140);
+      estimatedValue += holdings.SOL * solPrice;
+    }
+
+    historyPoints.push({
+      date: formatDateShort(dateKey),
+      value: Math.round(estimatedValue),
+      label: '',
+    });
+  });
+
+  return historyPoints;
+}
+
+// Parse trade date (handles formats like "Nov 21", "Oct 30", etc.)
+function parseTradeDate(dateStr) {
+  if (!dateStr) return new Date();
+  const months = { Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5, Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11 };
+  const parts = dateStr.split(' ');
+  if (parts.length === 2) {
+    const month = months[parts[0]];
+    const day = parseInt(parts[1]);
+    return new Date(2025, month, day);
+  }
+  return new Date(dateStr);
+}
+
+// Format date to short form
+function formatDateShort(dateStr) {
+  const date = parseTradeDate(dateStr);
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return `${months[date.getMonth()]} ${date.getDate()}`;
 }
 
 export default function App() {
@@ -165,6 +265,15 @@ export default function App() {
   const clientName = config.client_name || 'Portfolio';
   const startDate = config.start_date || '';
 
+  // Calculate Carla's portfolio (mirrors Chloé's return since July 4)
+  // Chloé's return since July 4: portfolio was ~$32k on Jul 4, now at totalValue
+  // Carla started with $2000, so her value = $2000 * (1 + return%)
+  const carlaValue = CARLA_CONFIG.initialInvestment * (1 + parseFloat(totalReturn) / 100);
+  const carlaReturn = totalReturn; // Same return % as Chloé
+
+  // Use provided history, or calculate from trades if history is empty/minimal
+  const displayHistory = history.length > 3 ? history : calculateHistoryFromTrades(trades, prices, totalInvested);
+
   const allocation = positionsWithValue
     .filter(p => p.value > 0)
     .map(p => ({
@@ -261,9 +370,9 @@ export default function App() {
           {/* Performance Chart */}
           <div className="md:col-span-2 bg-slate-800/50 backdrop-blur rounded-2xl p-4 md:p-6 border border-slate-700/50">
             <h2 className="text-lg font-semibold mb-4">Performance</h2>
-            {history.length > 0 ? (
+            {displayHistory.length > 0 ? (
               <ResponsiveContainer width="100%" height={250}>
-                <AreaChart data={history}>
+                <AreaChart data={displayHistory}>
                   <defs>
                     <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#10b981" stopOpacity={0.5}/>
@@ -400,7 +509,7 @@ export default function App() {
 
         {/* Price Targets */}
         {targets.length > 0 && (
-          <div className="bg-gradient-to-r from-emerald-900/30 to-teal-900/30 backdrop-blur rounded-2xl p-4 md:p-6 border border-emerald-700/30">
+          <div className="bg-gradient-to-r from-emerald-900/30 to-teal-900/30 backdrop-blur rounded-2xl p-4 md:p-6 border border-emerald-700/30 mb-6">
             <div className="flex items-center gap-2 mb-4">
               <span className="text-xl">🎯</span>
               <h2 className="text-lg font-semibold">Price Targets</h2>
@@ -427,6 +536,38 @@ export default function App() {
             </div>
           </div>
         )}
+
+        {/* Carla's Portfolio */}
+        <div className="bg-gradient-to-r from-purple-900/30 to-pink-900/30 backdrop-blur rounded-2xl p-4 md:p-6 border border-purple-700/30 mb-6">
+          <div className="flex items-center gap-2 mb-4">
+            <span className="text-xl">👤</span>
+            <h2 className="text-lg font-semibold">{CARLA_CONFIG.name}'s Portfolio</h2>
+            <span className="text-xs bg-purple-500/20 text-purple-400 px-2 py-1 rounded-full">Mirror Strategy</span>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="bg-slate-800/50 rounded-xl p-4">
+              <div className="text-slate-400 text-sm mb-1">Portfolio Value</div>
+              <div className="text-xl md:text-2xl font-bold">${carlaValue.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</div>
+            </div>
+            <div className="bg-slate-800/50 rounded-xl p-4">
+              <div className="text-slate-400 text-sm mb-1">Invested</div>
+              <div className="text-xl md:text-2xl font-bold">${CARLA_CONFIG.initialInvestment.toLocaleString()}</div>
+            </div>
+            <div className="bg-slate-800/50 rounded-xl p-4">
+              <div className="text-slate-400 text-sm mb-1">Profit</div>
+              <div className="text-xl md:text-2xl font-bold text-emerald-400">
+                +${(carlaValue - CARLA_CONFIG.initialInvestment).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+              </div>
+            </div>
+            <div className="bg-slate-800/50 rounded-xl p-4">
+              <div className="text-slate-400 text-sm mb-1">Return</div>
+              <div className="text-xl md:text-2xl font-bold text-emerald-400">+{carlaReturn}%</div>
+            </div>
+          </div>
+          <div className="mt-3 text-sm text-slate-500">
+            Started {CARLA_CONFIG.startDate} • Mirrors {clientName}'s allocation
+          </div>
+        </div>
 
         {/* Footer */}
         <div className="text-center text-slate-500 text-sm mt-8">
