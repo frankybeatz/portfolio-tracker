@@ -1389,7 +1389,7 @@ export default function App() {
           <div className="bg-slate-800/50 backdrop-blur rounded-2xl p-4 md:p-6 border border-slate-700/50">
             <h2 className="text-lg font-semibold mb-4">Recent Trades <span className="text-sm text-slate-500 font-normal">({trades.length})</span></h2>
             <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
-              {[...trades].reverse().map((trade, i) => {
+            {[...trades].sort((a, b) => parseTradeDate(b.date) - parseTradeDate(a.date)).map((trade, i) => {
                 const priceNum = parseFloat(trade.price?.toString().replace(/[$,]/g, '')) || 0;
                 const amountNum = parseFloat(trade.amount) || 0;
                 const usdValue = priceNum * amountNum;
